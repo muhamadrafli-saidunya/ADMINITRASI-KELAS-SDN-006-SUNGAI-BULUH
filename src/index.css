@@ -1,0 +1,282 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+@layer utilities {
+  /* Custom thin scrollbars */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 9999px;
+  }
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.6);
+  }
+
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Format Sampul & Biodata Kurikulum Merdeka */
+.student-biodata-clean-table,
+.student-biodata-clean-table tr,
+.student-biodata-clean-table td {
+  border: 0 none transparent !important;
+  border-width: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+.school-identity-table {
+  border: 0 none transparent !important;
+  border-collapse: collapse !important;
+  width: 100% !important;
+}
+
+.school-identity-table tr {
+  border-left: none !important;
+  border-right: none !important;
+  border-top: none !important;
+}
+
+.school-identity-table td {
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+/* Official Print Styles for Indonesian Elementary School Administration Documents */
+@media print {
+  @page {
+    size: auto;
+    margin: 8mm 10mm 10mm 10mm;
+  }
+
+  /* Reset html & body for clean white paper background */
+  html, body {
+    background-color: #ffffff !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-family: 'Calibri', 'Arial', -apple-system, BlinkMacSystemFont, sans-serif !important;
+    font-size: 10pt !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  /* Unclamp and neutralize all modal backdrops/scroll boxes during printing so they don't clip pages */
+  .fixed,
+  .overflow-hidden,
+  .overflow-x-hidden,
+  .overflow-y-auto,
+  .overflow-x-auto,
+  .backdrop-blur,
+  .backdrop-blur-xs,
+  .backdrop-blur-sm,
+  .backdrop-blur-md,
+  [role="dialog"] {
+    position: static !important;
+    overflow: visible !important;
+    max-height: none !important;
+    height: auto !important;
+    transform: none !important;
+    filter: none !important;
+    backdrop-filter: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Reset all outer structural wrappers so they never add margin, padding, or offset to print */
+  #root,
+  #root > div,
+  main,
+  div[class*="transition-all"],
+  div[class*="overflow-x-hidden"] {
+    position: static !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: transparent !important;
+    transform: none !important;
+  }
+
+  /* Force hide all non-printable application chrome, sidebars, topbars, and action buttons */
+  header,
+  aside,
+  nav,
+  footer,
+  button,
+  .no-print,
+  .no-print *,
+  [data-no-print="true"],
+  .toast-container,
+  .modal-backdrop,
+  .print\:hidden,
+  [class*="print:hidden"] {
+    display: none !important;
+    visibility: hidden !important;
+    height: 0 !important;
+    width: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+
+  /* Position printable official sheets in normal document flow so page-breaks work across multiple pages */
+  #printable-official-document,
+  .printable-document-sheet {
+    display: block !important;
+    position: static !important;
+    width: 100% !important;
+    min-width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    overflow: visible !important;
+    visibility: visible !important;
+  }
+
+  #printable-official-document *,
+  .printable-document-sheet * {
+    visibility: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  .kop-logo-box,
+  .kop-logo-box img,
+  .kop-logo-box svg {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    image-rendering: -webkit-optimize-contrast !important;
+  }
+
+  /* Clean borders and font sizing for printable tables (default for report card data tables) */
+  table:not(.student-biodata-clean-table):not(.school-identity-table):not(.border-none) {
+    border-collapse: collapse !important;
+    width: 100% !important;
+    page-break-inside: auto !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  /* Default table cell borders in print (for report card grade tables, etc.) */
+  table:not(.student-biodata-clean-table):not(.school-identity-table):not(.border-none) th,
+  table:not(.student-biodata-clean-table):not(.school-identity-table):not(.border-none) td {
+    border: 1px solid #000000 !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Pastikan isian biodata lengkap peserta didik tidak memiliki garis atau kolom sama sekali saat cetak */
+  .student-biodata-page table,
+  .student-biodata-page tr,
+  .student-biodata-page td,
+  .student-biodata-page th,
+  .student-biodata-clean-table,
+  .student-biodata-clean-table tr,
+  .student-biodata-clean-table td {
+    border: 0 none transparent !important;
+    border-width: 0 !important;
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  /* Identitas satuan pendidikan: cukup garis tipis horizontal, tanpa kolom/garis vertikal saat cetak */
+  .school-identity-page table,
+  .school-identity-table {
+    border: 0 none transparent !important;
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  .school-identity-page tr,
+  .school-identity-table tr {
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+  }
+
+  .school-identity-page td,
+  .school-identity-table td {
+    border-top: none !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: 0.5pt solid #cbd5e1 !important;
+  }
+
+  th {
+    background-color: #f1f5f9 !important;
+    font-weight: bold !important;
+  }
+
+  /* Prevent page-breaks in the middle of headers, Kop, and signature blocks */
+  h1, h2, h3, h4, .page-break-inside-avoid, .print-avoid-break, .sign-block {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
+
+  .sign-name {
+    font-weight: bold !important;
+    text-decoration: underline !important;
+  }
+
+  /* Multi-student page break */
+  .print-page-break,
+  .student-rapor-page.print-page-break {
+    page-break-after: always !important;
+    break-after: page !important;
+  }
+
+  /* Clean break before page 2 */
+  .print-break-before-page,
+  .break-before-page {
+    page-break-before: always !important;
+    break-before: page !important;
+  }
+
+  .student-rapor-page {
+    box-sizing: border-box !important;
+    page-break-inside: auto !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

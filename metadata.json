@@ -1,0 +1,8 @@
+{
+  "name": "Adminitrasi Kelas SDN 006 Sungai Buluh 206",
+  "description": "Aplikasi manajemen dan administrasi kelas Sekolah Dasar lengkap: data siswa, presensi, daftar nilai Kurikulum Merdeka, raport otomatis, jurnal mengajar, jadwal, kas kelas, inventaris, dan asisten guru.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

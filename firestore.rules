@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-\\.\\s]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Settings Collection (School Info)
+    match /settings/{settingId} {
+      allow read: if true;
+      allow write: if isValidId(settingId);
+    }
+
+    // Students
+    match /students/{studentId} {
+      allow read: if true;
+      allow create, update: if isValidId(studentId) &&
+        (!('nama' in incoming()) || (incoming().nama is string && incoming().nama.size() <= 200));
+      allow delete: if isValidId(studentId);
+    }
+
+    // Teachers
+    match /teachers/{teacherId} {
+      allow read: if true;
+      allow create, update: if isValidId(teacherId) &&
+        (!('nama' in incoming()) || (incoming().nama is string && incoming().nama.size() <= 200));
+      allow delete: if isValidId(teacherId);
+    }
+
+    // Subjects
+    match /subjects/{subjectId} {
+      allow read: if true;
+      allow create, update: if isValidId(subjectId) &&
+        (!('nama' in incoming()) || (incoming().nama is string && incoming().nama.size() <= 200));
+      allow delete: if isValidId(subjectId);
+    }
+
+    // Tujuan Pembelajaran
+    match /tujuanPembelajaran/{tpId} {
+      allow read: if true;
+      allow create, update: if isValidId(tpId) &&
+        (!('kode' in incoming()) || (incoming().kode is string && incoming().kode.size() <= 100));
+      allow delete: if isValidId(tpId);
+    }
+
+    // Grades
+    match /grades/{gradeId} {
+      allow read: if true;
+      allow create, update: if isValidId(gradeId) &&
+        (!('nilai' in incoming()) || (incoming().nilai is number && incoming().nilai >= 0 && incoming().nilai <= 100));
+      allow delete: if isValidId(gradeId);
+    }
+
+    // Attendance
+    match /attendance/{attendanceId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(attendanceId);
+    }
+
+    // Timetable Schedule
+    match /schedule/{scheduleId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(scheduleId);
+    }
+
+    // Cleaning Duties (Piket)
+    match /cleaningDuties/{dutyId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(dutyId);
+    }
+
+    // Events / School Calendar
+    match /events/{eventId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(eventId);
+    }
+
+    // Teacher Journals
+    match /journals/{journalId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(journalId);
+    }
+
+    // Cash Transactions
+    match /transactions/{transactionId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(transactionId);
+    }
+
+    // Student Weekly Dues Tracker
+    match /weeklyDues/{duesId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(duesId);
+    }
+
+    // Inventory Items
+    match /inventory/{itemId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(itemId);
+    }
+
+    // Student Counseling and Achievement Notes
+    match /studentNotes/{noteId} {
+      allow read: if true;
+      allow create, update, delete: if isValidId(noteId);
+    }
+
+    // Connection Test Document
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+  }
+}

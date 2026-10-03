@@ -1,0 +1,328 @@
+{
+  "entities": {
+    "SchoolInfo": {
+      "title": "SchoolInfo",
+      "description": "General school and classroom meta information",
+      "type": "object",
+      "properties": {
+        "schoolName": { "type": "string", "maxLength": 200 },
+        "npsn": { "type": "string", "maxLength": 50 },
+        "academicYear": { "type": "string", "maxLength": 50 },
+        "semester": { "type": "string", "maxLength": 50 },
+        "className": { "type": "string", "maxLength": 50 },
+        "phase": { "type": "string", "maxLength": 100 },
+        "homeroomTeacherName": { "type": "string", "maxLength": 150 },
+        "homeroomTeacherNip": { "type": "string", "maxLength": 100 },
+        "headmasterName": { "type": "string", "maxLength": 150 },
+        "headmasterNip": { "type": "string", "maxLength": 100 },
+        "schoolAddress": { "type": "string", "maxLength": 300 },
+        "kurikulum": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["schoolName", "className", "homeroomTeacherName"]
+    },
+    "Student": {
+      "title": "Student",
+      "description": "Student master profile data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "nisn": { "type": "string", "maxLength": 50 },
+        "nis": { "type": "string", "maxLength": 50 },
+        "nama": { "type": "string", "maxLength": 150 },
+        "jenisKelamin": { "type": "string", "enum": ["L", "P"] },
+        "tempatLahir": { "type": "string", "maxLength": 100 },
+        "tanggalLahir": { "type": "string", "maxLength": 50 },
+        "agama": { "type": "string", "maxLength": 50 },
+        "alamat": { "type": "string", "maxLength": 300 },
+        "namaAyah": { "type": "string", "maxLength": 150 },
+        "namaIbu": { "type": "string", "maxLength": 150 },
+        "pekerjaanOrtu": { "type": "string", "maxLength": 150 },
+        "noHpOrtu": { "type": "string", "maxLength": 50 },
+        "fotoUrl": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["Aktif", "Mutasi", "Lulus"] },
+        "nomorAbsen": { "type": "number" },
+        "kelas": { "type": "string", "maxLength": 50 },
+        "catatanKhusus": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["nisn", "nama", "jenisKelamin", "nomorAbsen"]
+    },
+    "Teacher": {
+      "title": "Teacher",
+      "description": "Educator and staff profile data",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "nama": { "type": "string", "maxLength": 150 },
+        "nip": { "type": "string", "maxLength": 100 },
+        "nuptk": { "type": "string", "maxLength": 100 },
+        "jenisKelamin": { "type": "string", "enum": ["L", "P"] },
+        "jabatan": { "type": "string", "maxLength": 150 },
+        "jenisGuru": { "type": "string", "enum": ["Guru Kelas", "Guru Mapel", "Guru BK", "Tendik"] },
+        "statusKepegawaian": { "type": "string", "maxLength": 100 },
+        "statusAktif": { "type": "string", "enum": ["Aktif", "Cuti", "Tugas Belajar"] },
+        "pendidikanTerakhir": { "type": "string", "maxLength": 100 },
+        "jurusan": { "type": "string", "maxLength": 100 },
+        "mataPelajaranUtama": { "type": "array" },
+        "kelasDiampu": { "type": "string", "maxLength": 100 },
+        "noHp": { "type": "string", "maxLength": 50 },
+        "email": { "type": "string", "maxLength": 150 },
+        "alamat": { "type": "string", "maxLength": 300 },
+        "fotoUrl": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["nama", "nip", "jabatan", "jenisGuru"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Curriculum course / mata pelajaran",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "kode": { "type": "string", "maxLength": 50 },
+        "nama": { "type": "string", "maxLength": 150 },
+        "kelompok": { "type": "string", "enum": ["Umum", "Muatan Lokal", "Pilihan"] },
+        "kktp": { "type": "number" },
+        "guruPengampu": { "type": "string", "maxLength": 150 },
+        "iconName": { "type": "string", "maxLength": 50 },
+        "deskripsi": { "type": "string", "maxLength": 500 },
+        "jumlahJamPerMinggu": { "type": "number" }
+      },
+      "required": ["kode", "nama", "kelompok", "kktp", "guruPengampu"]
+    },
+    "TujuanPembelajaran": {
+      "title": "TujuanPembelajaran",
+      "description": "Learning objective (TP) for Kurikulum Merdeka",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "mapelId": { "type": "string", "maxLength": 100 },
+        "kode": { "type": "string", "maxLength": 50 },
+        "lingkupMateri": { "type": "string", "maxLength": 200 },
+        "deskripsi": { "type": "string", "maxLength": 500 },
+        "semester": { "type": "string", "enum": ["1 (Ganjil)", "2 (Genap)", "Semua"] },
+        "fase": { "type": "string", "maxLength": 100 },
+        "kktp": { "type": "number" },
+        "ringkasanRaporTuntas": { "type": "string", "maxLength": 500 },
+        "ringkasanRaporPerluBimbingan": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["mapelId", "kode", "lingkupMateri", "deskripsi"]
+    },
+    "GradeRecord": {
+      "title": "GradeRecord",
+      "description": "Assessment score record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "siswaId": { "type": "string", "maxLength": 100 },
+        "mapelId": { "type": "string", "maxLength": 100 },
+        "jenis": { "type": "string", "maxLength": 50 },
+        "nilai": { "type": "number" },
+        "semester": { "type": "string", "maxLength": 50 },
+        "catatan": { "type": "string", "maxLength": 500 },
+        "tanggal": { "type": "string", "maxLength": 50 }
+      },
+      "required": ["siswaId", "mapelId", "jenis", "nilai"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Daily student attendance",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "siswaId": { "type": "string", "maxLength": 100 },
+        "tanggal": { "type": "string", "maxLength": 50 },
+        "status": { "type": "string", "enum": ["Hadir", "Sakit", "Izin", "Alpa"] },
+        "keterangan": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["siswaId", "tanggal", "status"]
+    },
+    "ScheduleItem": {
+      "title": "ScheduleItem",
+      "description": "Class timetable schedule item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "hari": { "type": "string", "enum": ["Senin", "Selasa", "Rabu", "Kamis", "Jumat", "Sabtu"] },
+        "jamKe": { "type": "number" },
+        "waktu": { "type": "string", "maxLength": 50 },
+        "mapelId": { "type": "string", "maxLength": 100 },
+        "guruPengampu": { "type": "string", "maxLength": 150 },
+        "ruang": { "type": "string", "maxLength": 100 },
+        "warnaBadge": { "type": "string", "maxLength": 150 },
+        "catatanPerlengkapan": { "type": "string", "maxLength": 300 },
+        "topikMateri": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["hari", "jamKe", "waktu", "mapelId"]
+    },
+    "CleaningDuty": {
+      "title": "CleaningDuty",
+      "description": "Class cleaning duty schedule",
+      "type": "object",
+      "properties": {
+        "hari": { "type": "string", "maxLength": 50 },
+        "siswaIds": { "type": "array" },
+        "ketuaPiket": { "type": "string", "maxLength": 150 },
+        "tugasSpesifik": { "type": "string", "maxLength": 500 },
+        "areaTugas": { "type": "array" },
+        "waktuPiket": { "type": "string", "maxLength": 100 }
+      },
+      "required": ["hari", "siswaIds"]
+    },
+    "SchoolEvent": {
+      "title": "SchoolEvent",
+      "description": "School calendar event or agenda item",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "tanggal": { "type": "string", "maxLength": 50 },
+        "waktu": { "type": "string", "maxLength": 100 },
+        "judul": { "type": "string", "maxLength": 200 },
+        "kategori": { "type": "string", "enum": ["Sekolah", "Kelas", "Ujian", "Libur", "P5"] },
+        "deskripsi": { "type": "string", "maxLength": 500 }
+      },
+      "required": ["tanggal", "judul", "kategori"]
+    },
+    "JournalEntry": {
+      "title": "JournalEntry",
+      "description": "Teacher daily class teaching journal",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "tanggal": { "type": "string", "maxLength": 50 },
+        "jamKe": { "type": "string", "maxLength": 50 },
+        "mapelId": { "type": "string", "maxLength": 100 },
+        "materi": { "type": "string", "maxLength": 300 },
+        "tujuanPembelajaran": { "type": "string", "maxLength": 300 },
+        "kegiatan": { "type": "string", "maxLength": 500 },
+        "kehadiran": { "type": "string", "maxLength": 100 },
+        "catatan": { "type": "string", "maxLength": 500 },
+        "status": { "type": "string", "enum": ["Terlaksana", "Tertunda", "Diganti"] }
+      },
+      "required": ["tanggal", "mapelId", "materi", "status"]
+    },
+    "CashTransaction": {
+      "title": "CashTransaction",
+      "description": "Classroom cash book income/expense transaction",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "tanggal": { "type": "string", "maxLength": 50 },
+        "keterangan": { "type": "string", "maxLength": 300 },
+        "jenis": { "type": "string", "enum": ["Pemasukan", "Pengeluaran"] },
+        "kategori": { "type": "string", "maxLength": 100 },
+        "jumlah": { "type": "number" },
+        "namaSiswa": { "type": "string", "maxLength": 150 },
+        "penanggungJawab": { "type": "string", "maxLength": 150 }
+      },
+      "required": ["tanggal", "keterangan", "jenis", "jumlah", "penanggungJawab"]
+    },
+    "StudentDuesRecord": {
+      "title": "StudentDuesRecord",
+      "description": "Student weekly classroom dues check sheet",
+      "type": "object",
+      "properties": {
+        "siswaId": { "type": "string", "maxLength": 100 },
+        "bulan": { "type": "string", "maxLength": 50 },
+        "minggu1": { "type": "boolean" },
+        "minggu2": { "type": "boolean" },
+        "minggu3": { "type": "boolean" },
+        "minggu4": { "type": "boolean" },
+        "minggu5": { "type": "boolean" }
+      },
+      "required": ["siswaId", "bulan"]
+    },
+    "InventoryItem": {
+      "title": "InventoryItem",
+      "description": "Classroom physical asset / item record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "kodeBarang": { "type": "string", "maxLength": 50 },
+        "namaBarang": { "type": "string", "maxLength": 150 },
+        "spesifikasi": { "type": "string", "maxLength": 200 },
+        "jumlah": { "type": "number" },
+        "kondisi": { "type": "string", "enum": ["Baik", "Rusak Ringan", "Rusak Berat"] },
+        "tahunPengadaan": { "type": "number" },
+        "sumberDana": { "type": "string", "maxLength": 100 },
+        "keterangan": { "type": "string", "maxLength": 300 }
+      },
+      "required": ["kodeBarang", "namaBarang", "jumlah", "kondisi"]
+    },
+    "StudentNote": {
+      "title": "StudentNote",
+      "description": "Student achievement, counseling or disciplinary note",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 100 },
+        "siswaId": { "type": "string", "maxLength": 100 },
+        "tanggal": { "type": "string", "maxLength": 50 },
+        "kategori": { "type": "string", "enum": ["Prestasi", "Pelanggaran", "Bimbingan", "Konseling Ortu"] },
+        "kasusAtauPrestasi": { "type": "string", "maxLength": 300 },
+        "tindakLanjut": { "type": "string", "maxLength": 300 },
+        "hasil": { "type": "string", "maxLength": 200 }
+      },
+      "required": ["siswaId", "tanggal", "kategori", "kasusAtauPrestasi"]
+    }
+  },
+  "firestore": {
+    "/settings/{settingId}": {
+      "schema": "SchoolInfo",
+      "description": "Application settings and school identity"
+    },
+    "/students/{studentId}": {
+      "schema": "Student",
+      "description": "Student master data"
+    },
+    "/teachers/{teacherId}": {
+      "schema": "Teacher",
+      "description": "Teachers and staff profiles"
+    },
+    "/subjects/{subjectId}": {
+      "schema": "Subject",
+      "description": "Curriculum subjects"
+    },
+    "/tujuanPembelajaran/{tpId}": {
+      "schema": "TujuanPembelajaran",
+      "description": "Learning objectives (TP)"
+    },
+    "/grades/{gradeId}": {
+      "schema": "GradeRecord",
+      "description": "Formative and summative student grades"
+    },
+    "/attendance/{attendanceId}": {
+      "schema": "AttendanceRecord",
+      "description": "Student daily attendance records"
+    },
+    "/schedule/{scheduleId}": {
+      "schema": "ScheduleItem",
+      "description": "Class timetable schedule items"
+    },
+    "/cleaningDuties/{dutyId}": {
+      "schema": "CleaningDuty",
+      "description": "Cleaning duty team schedules"
+    },
+    "/events/{eventId}": {
+      "schema": "SchoolEvent",
+      "description": "School and class agenda events"
+    },
+    "/journals/{journalId}": {
+      "schema": "JournalEntry",
+      "description": "Teacher daily teaching journals"
+    },
+    "/transactions/{transactionId}": {
+      "schema": "CashTransaction",
+      "description": "Classroom cash book income and expense records"
+    },
+    "/weeklyDues/{duesId}": {
+      "schema": "StudentDuesRecord",
+      "description": "Student weekly dues tracker"
+    },
+    "/inventory/{itemId}": {
+      "schema": "InventoryItem",
+      "description": "Classroom inventory and assets"
+    },
+    "/studentNotes/{noteId}": {
+      "schema": "StudentNote",
+      "description": "Counseling, behavioral, and student achievement records"
+    }
+  }
+}
