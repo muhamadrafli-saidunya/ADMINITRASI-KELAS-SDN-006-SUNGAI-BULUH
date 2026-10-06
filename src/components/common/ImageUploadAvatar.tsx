@@ -12,7 +12,13 @@ import {
   AlertCircle,
   Eye,
   X,
-  Smile
+  Smile,
+  SwitchCamera,
+  RotateCcw,
+  Smartphone,
+  Lock,
+  HelpCircle,
+  CameraOff
 } from 'lucide-react';
 
 export interface ImageUploadAvatarProps {
@@ -157,9 +163,15 @@ export const ImageUploadAvatar: React.FC<ImageUploadAvatarProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [cameraActive, setCameraActive] = useState(false);
+  const [isCameraLoading, setIsCameraLoading] = useState(false);
   const [hasCameraPermission, setHasCameraPermission] = useState<boolean | null>(null);
+  const [permissionErrorType, setPermissionErrorType] = useState<'denied' | 'notfound' | 'notsupported' | 'iframe_blocked' | null>(null);
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('user');
+  const [showPermissionGuide, setShowPermissionGuide] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const nativeCameraFrontRef = useRef<HTMLInputElement | null>(null);
+  const nativeCameraBackRef = useRef<HTMLInputElement | null>(null);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
 
@@ -173,50 +185,162 @@ export const ImageUploadAvatar: React.FC<ImageUploadAvatarProps> = ({
     };
   }, []);
 
+  // Attach stream to video element when mounted or changed
+  const attachStreamToVideo = (el: HTMLVideoElement | null) => {
+    videoRef.current = el;
+    if (el && mediaStreamRef.current) {
+      if (el.srcObject !== mediaStreamRef.current) {
+        el.srcObject = mediaStreamRef.current;
+      }
+      el.play().catch(err => {
+        console.warn('Video auto play interrupted:', err);
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (cameraActive && videoRef.current && mediaStreamRef.current) {
+      if (videoRef.current.srcObject !== mediaStreamRef.current) {
+        videoRef.current.srcObject = mediaStreamRef.current;
+      }
+      videoRef.current.play().catch(e => console.warn('Video play effect:', e));
+    }
+  }, [cameraActive]);
+
   const stopCameraStream = () => {
     if (mediaStreamRef.current) {
       mediaStreamRef.current.getTracks().forEach(track => track.stop());
       mediaStreamRef.current = null;
     }
     setCameraActive(false);
+    setIsCameraLoading(false);
   };
 
-  const startCamera = async () => {
+  const startCamera = async (targetFacing?: 'user' | 'environment') => {
+    const selectedFacing = targetFacing || facingMode;
+    setErrorMessage(null);
+    setPermissionErrorType(null);
+    setIsCameraLoading(true);
+
+    stopCameraStream();
+
+    // Verify if mediaDevices is supported in current browser / context
+    if (!navigator?.mediaDevices?.getUserMedia) {
+      setIsCameraLoading(false);
+      setHasCameraPermission(false);
+      setPermissionErrorType('notsupported');
+      setErrorMessage(
+        'Peramban tidak mendukung live stream webcam di lingkungan ini. Gunakan tombol "Buka Kamera HP / Bawaan" di bawah.'
+      );
+      return;
+    }
+
     try {
-      setErrorMessage(null);
-      stopCameraStream();
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'user', width: { ideal: 640 }, height: { ideal: 640 } }
-      });
-      mediaStreamRef.current = stream;
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+      let stream: MediaStream;
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: selectedFacing,
+            width: { ideal: 640 },
+            height: { ideal: 640 }
+          },
+          audio: false
+        });
+      } catch (firstErr) {
+        // Fallback to simpler constraints
+        stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: false
+        });
       }
+
+      mediaStreamRef.current = stream;
       setCameraActive(true);
       setHasCameraPermission(true);
+      setPermissionErrorType(null);
+      setIsCameraLoading(false);
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        videoRef.current.play().catch(e => console.warn('Auto play:', e));
+      }
     } catch (err: any) {
+      console.warn('Camera getUserMedia error:', err);
+      setIsCameraLoading(false);
+      setCameraActive(false);
       setHasCameraPermission(false);
-      setErrorMessage('Kamera tidak dapat diakses. Pastikan izin kamera telah diberikan di peramban (browser).');
+
+      const errName = err?.name || '';
+      if (errName === 'NotAllowedError' || errName === 'PermissionDeniedError') {
+        setPermissionErrorType('denied');
+        setErrorMessage(
+          'Izin kamera belum diberikan atau dibatasi oleh peramban/keamanan frame. Anda bisa klik "Buka Kamera HP / Bawaan" untuk langsung mengambil foto tanpa terhalang izin browser.'
+        );
+      } else if (errName === 'NotFoundError' || errName === 'DevicesNotFoundError') {
+        setPermissionErrorType('notfound');
+        setErrorMessage(
+          'Perangkat kamera/webcam tidak terdeteksi pada sistem ini.'
+        );
+      } else if (errName === 'SecurityError') {
+        setPermissionErrorType('iframe_blocked');
+        setErrorMessage(
+          'Akses kamera dibatasi oleh kebijakan frame/domain peramban.'
+        );
+      } else {
+        setPermissionErrorType('denied');
+        setErrorMessage(
+          `Kamera tidak dapat diakses (${err.message || 'Izin ditolak'}). Silakan gunakan tombol Kamera Bawaan HP di bawah.`
+        );
+      }
+    }
+  };
+
+  const toggleFacingMode = () => {
+    const nextFacing = facingMode === 'user' ? 'environment' : 'user';
+    setFacingMode(nextFacing);
+    if (cameraActive) {
+      startCamera(nextFacing);
+    }
+  };
+
+  const triggerNativeCamera = (facing: 'user' | 'environment' = 'user') => {
+    stopCameraStream();
+    if (facing === 'environment') {
+      nativeCameraBackRef.current?.click();
+    } else {
+      nativeCameraFrontRef.current?.click();
     }
   };
 
   const capturePhoto = () => {
     if (!videoRef.current) return;
     const video = videoRef.current;
+    const vw = video.videoWidth || 640;
+    const vh = video.videoHeight || 480;
+
     const canvas = document.createElement('canvas');
-    const size = Math.min(video.videoWidth, video.videoHeight) || 400;
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
+    if (aspectRatio === '3:4') {
+      const targetHeight = Math.min(vh, Math.round((vw * 4) / 3));
+      const targetWidth = Math.round(targetHeight * 0.75);
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const startX = Math.max(0, (vw - targetWidth) / 2);
+      const startY = Math.max(0, (vh - targetHeight) / 2);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, startX, startY, targetWidth, targetHeight, 0, 0, targetWidth, targetHeight);
+    } else {
+      const size = Math.min(vw, vh);
+      canvas.width = size;
+      canvas.height = size;
+      const startX = Math.max(0, (vw - size) / 2);
+      const startY = Math.max(0, (vh - size) / 2);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.drawImage(video, startX, startY, size, size, 0, 0, size, size);
+    }
 
-    // Center crop to 1:1 square
-    const startX = (video.videoWidth - size) / 2;
-    const startY = (video.videoHeight - size) / 2;
-    ctx.drawImage(video, startX, startY, size, size, 0, 0, size, size);
-
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.85);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.88);
     onChange(dataUrl);
     stopCameraStream();
     setActiveTab('upload');
@@ -482,7 +606,7 @@ export const ImageUploadAvatar: React.FC<ImageUploadAvatarProps> = ({
             </button>
           </div>
 
-          {/* Hidden File Input */}
+          {/* Hidden File Input for Standard File Upload */}
           <input
             ref={fileInputRef}
             type="file"
@@ -491,29 +615,62 @@ export const ImageUploadAvatar: React.FC<ImageUploadAvatarProps> = ({
             className="hidden"
           />
 
+          {/* Hidden Native Device Camera Inputs (100% bypass for iframe / browser permission blocks) */}
+          <input
+            ref={nativeCameraFrontRef}
+            type="file"
+            accept="image/*"
+            capture="user"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+          <input
+            ref={nativeCameraBackRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            onChange={handleFileChange}
+            className="hidden"
+          />
+
           {/* TAB 1: FILE UPLOAD (DRAG & DROP) */}
           {activeTab === 'upload' && (
-            <div
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={() => fileInputRef.current?.click()}
-              className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
-                isDragging
-                  ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40'
-                  : 'border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/40 hover:border-blue-400 hover:bg-slate-100/50 dark:hover:bg-slate-800'
-              }`}
-            >
-              <div className="flex flex-col items-center gap-1.5">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
-                  <Upload className="h-4 w-4" />
+            <div className="space-y-2.5">
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                onClick={() => fileInputRef.current?.click()}
+                className={`cursor-pointer rounded-xl border-2 border-dashed p-4 text-center transition-all ${
+                  isDragging
+                    ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40'
+                    : 'border-slate-300 dark:border-slate-700 bg-white/60 dark:bg-slate-800/40 hover:border-blue-400 hover:bg-slate-100/50 dark:hover:bg-slate-800'
+                }`}
+              >
+                <div className="flex flex-col items-center gap-1.5">
+                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600 dark:bg-blue-950/60 dark:text-blue-400">
+                    <Upload className="h-4 w-4" />
+                  </div>
+                  <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                    Klik untuk pilih foto atau seret berkas ke sini
+                  </p>
+                  <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
+                    Mendukung PNG, JPG, JPEG, WebP (Otomatis dikompresi & disesuaikan)
+                  </p>
                 </div>
-                <p className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                  Klik untuk pilih foto atau seret berkas ke sini
-                </p>
-                <p className="text-[10.5px] text-slate-500 dark:text-slate-400">
-                  Mendukung PNG, JPG, JPEG, WebP (Otomatis dikompresi agar ringan)
-                </p>
+              </div>
+
+              {/* Quick Camera Action Shortcut */}
+              <div className="flex items-center justify-center gap-2 pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => triggerNativeCamera('user')}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+                  title="Ambil pasfoto siswa langsung lewat kamera HP/Laptop"
+                >
+                  <Camera className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                  <span>Ambil via Kamera Perangkat</span>
+                </button>
               </div>
             </div>
           )}
@@ -556,52 +713,214 @@ export const ImageUploadAvatar: React.FC<ImageUploadAvatarProps> = ({
             </div>
           )}
 
-          {/* TAB 3: WEBCAM PHOTO CAPTURE */}
+          {/* TAB 3: WEBCAM PHOTO CAPTURE & NATIVE CAMERA */}
           {activeTab === 'camera' && (
-            <div className="space-y-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3">
+            <div className="space-y-3 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-3.5 shadow-xs">
+              {/* STATE 1: LIVE WEBCAM ACTIVE */}
               {cameraActive ? (
                 <div className="flex flex-col items-center gap-3">
-                  <div className="relative w-48 h-48 rounded-xl overflow-hidden bg-black border-2 border-blue-500 shadow-md">
+                  <div className="relative w-56 h-56 sm:w-64 sm:h-64 rounded-2xl overflow-hidden bg-black border-2 border-blue-500 shadow-md">
                     <video
-                      ref={videoRef}
+                      ref={attachStreamToVideo}
                       autoPlay
                       playsInline
                       muted
+                      onLoadedMetadata={(e) => {
+                        (e.target as HTMLVideoElement).play().catch(() => {});
+                      }}
                       className="w-full h-full object-cover"
                     />
+
+                    {/* Pasfoto Framing Guide Oval */}
+                    <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-3">
+                      <div className="w-36 h-48 border-2 border-dashed border-white/60 rounded-[45%] shadow-[0_0_0_9999px_rgba(0,0,0,0.25)] flex items-end justify-center pb-2">
+                        <span className="text-[9px] font-bold text-white/90 bg-black/40 px-2 py-0.5 rounded-full backdrop-blur-xs">
+                          Posisikan Wajah Siswa
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Top Status Badge */}
+                    <div className="absolute top-2 left-2 flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-rose-600/90 text-white text-[10px] font-bold shadow-xs backdrop-blur-xs">
+                      <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                      <span>Live ({facingMode === 'user' ? 'Depan' : 'Belakang'})</span>
+                    </div>
+
+                    {/* Switch Camera Button (Depan / Belakang) */}
+                    <button
+                      type="button"
+                      onClick={toggleFacingMode}
+                      className="absolute top-2 right-2 p-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white text-xs font-semibold shadow-xs backdrop-blur-xs flex items-center gap-1"
+                      title="Ganti kamera depan / belakang"
+                    >
+                      <SwitchCamera className="h-3.5 w-3.5" />
+                    </button>
                   </div>
-                  <div className="flex items-center gap-2">
+
+                  {/* Camera Action Buttons */}
+                  <div className="flex flex-wrap items-center justify-center gap-2">
                     <button
                       type="button"
                       onClick={capturePhoto}
-                      className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20"
+                      className="flex items-center gap-2 px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/25 cursor-pointer"
                     >
-                      <Camera className="h-3.5 w-3.5" />
-                      <span>Ambil Foto</span>
+                      <Camera className="h-4 w-4" />
+                      <span>Jepret Pasfoto</span>
                     </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleFacingMode}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold cursor-pointer"
+                    >
+                      <SwitchCamera className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>{facingMode === 'user' ? 'Kamera Belakang' : 'Kamera Depan'}</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={stopCameraStream}
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700"
+                      className="px-3 py-2 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
                     >
-                      Tutup Kamera
+                      Tutup
+                    </button>
+                  </div>
+
+                  {/* Fallback to Native Camera while live camera is on */}
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => triggerNativeCamera('user')}
+                      className="text-[11px] text-slate-500 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 underline flex items-center gap-1 cursor-pointer"
+                    >
+                      <Smartphone className="h-3 w-3" />
+                      <span>Gunakan kamera bawaan HP / perangkat (resolusi penuh)</span>
                     </button>
                   </div>
                 </div>
-              ) : (
-                <div className="text-center py-4 space-y-2">
-                  <Camera className="h-8 w-8 mx-auto text-slate-400" />
-                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                    Gunakan kamera perangkat untuk mengambil pasfoto langsung
+              ) : isCameraLoading ? (
+                /* STATE 2: CAMERA LOADING */
+                <div className="text-center py-8 space-y-3">
+                  <div className="h-10 w-10 border-3 border-blue-600 border-t-transparent rounded-full animate-spin mx-auto" />
+                  <p className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                    Menghubungkan ke kamera perangkat...
                   </p>
-                  <button
-                    type="button"
-                    onClick={startCamera}
-                    className="inline-flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs"
-                  >
-                    <Camera className="h-3.5 w-3.5" />
-                    <span>Nyalakan Kamera</span>
-                  </button>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Harap klik "Izinkan" jika muncul dialog perizinan kamera di peramban Anda.
+                  </p>
+                </div>
+              ) : permissionErrorType ? (
+                /* STATE 3: PERMISSION ERROR / IFRAME BLOCKED */
+                <div className="space-y-3 p-3.5 rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50/80 dark:bg-amber-950/30">
+                  <div className="flex items-start gap-2.5">
+                    <div className="h-9 w-9 rounded-xl bg-amber-100 dark:bg-amber-900/60 text-amber-700 dark:text-amber-300 flex items-center justify-center shrink-0 mt-0.5">
+                      <Lock className="h-4.5 w-4.5" />
+                    </div>
+                    <div className="space-y-1 min-w-0">
+                      <h4 className="text-xs font-bold text-amber-900 dark:text-amber-200">
+                        {permissionErrorType === 'denied'
+                          ? 'Izin Akses Kamera Ditolak / Dibatasi'
+                          : permissionErrorType === 'notfound'
+                          ? 'Perangkat Kamera Tidak Ditemukan'
+                          : 'Akses Kamera Dibatasi oleh Peramban'}
+                      </h4>
+                      <p className="text-[11px] text-amber-800 dark:text-amber-300 leading-relaxed">
+                        {errorMessage || 'Peramban memblokir akses langsung atau izin kamera belum diberikan.'}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Solutions Section */}
+                  <div className="pt-2 border-t border-amber-200/80 dark:border-amber-800/40 space-y-2">
+                    <p className="text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                      Solusi Terbaik:
+                    </p>
+
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      {/* Option 1: Native device camera bypass (100% works) */}
+                      <button
+                        type="button"
+                        onClick={() => triggerNativeCamera('user')}
+                        className="flex-1 flex items-center justify-center gap-2 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:scale-95 text-white text-xs font-bold shadow-md shadow-blue-500/20 cursor-pointer"
+                      >
+                        <Smartphone className="h-4 w-4" />
+                        <span>Buka Kamera HP / Perangkat (Bypass Izin)</span>
+                      </button>
+
+                      {/* Option 2: Retry getUserMedia */}
+                      <button
+                        type="button"
+                        onClick={() => startCamera()}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 hover:bg-amber-100 dark:hover:bg-amber-950 text-amber-900 dark:text-amber-200 text-xs font-bold cursor-pointer"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span>Coba Izin Ulang</span>
+                      </button>
+                    </div>
+
+                    {/* Expandable guide for enabling camera in browser */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowPermissionGuide(!showPermissionGuide)}
+                        className="text-[10.5px] font-semibold text-amber-800 dark:text-amber-300 hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <HelpCircle className="h-3 w-3" />
+                        <span>{showPermissionGuide ? 'Sembunyikan panduan izin browser' : 'Lihat cara mengizinkan kamera di browser'}</span>
+                      </button>
+
+                      {showPermissionGuide && (
+                        <div className="mt-2 p-2.5 rounded-lg bg-white/90 dark:bg-slate-900/80 border border-amber-200 dark:border-amber-900/60 text-[10.5px] text-slate-700 dark:text-slate-300 space-y-1 leading-relaxed">
+                          <p className="font-bold text-slate-900 dark:text-white">Panduan Mengaktifkan Izin Kamera di Browser:</p>
+                          <ol className="list-decimal list-inside space-y-0.5 text-slate-600 dark:text-slate-300">
+                            <li>Klik ikon <strong>Gembok (🔒)</strong> atau <strong>Ikon Setelan</strong> di sebelah kiri bilah URL peramban (browser).</li>
+                            <li>Cari opsi <strong>Kamera (Camera)</strong> lalu pilih <strong>"Izinkan" (Allow)</strong>.</li>
+                            <li>Setelah diizinkan, klik tombol <strong>"Coba Izin Ulang"</strong> di atas.</li>
+                            <li>Jika Anda menggunakan HP/tablet atau mode pratinjau, Anda dapat langsung menekan tombol biru <strong>"Buka Kamera HP / Perangkat"</strong> tanpa perlu mengatur izin browser.</li>
+                          </ol>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* STATE 4: INITIAL CAMERA READY SCREEN */
+                <div className="text-center py-4 px-2 space-y-3">
+                  <div className="h-12 w-12 rounded-2xl bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 flex items-center justify-center mx-auto shadow-xs">
+                    <Camera className="h-6 w-6" />
+                  </div>
+                  <div className="space-y-1">
+                    <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                      Ambil Pasfoto Siswa Menggunakan Kamera
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-sm mx-auto">
+                      Gunakan webcam laptop/komputer untuk pratinjau live, atau buka kamera bawaan HP/tablet untuk mengambil pasfoto langsung.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => startCamera()}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-md shadow-blue-500/20 active:scale-95 cursor-pointer"
+                    >
+                      <Camera className="h-3.5 w-3.5" />
+                      <span>Nyalakan Live Webcam</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => triggerNativeCamera('user')}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-800 dark:text-white text-xs font-bold shadow-xs active:scale-95 cursor-pointer"
+                    >
+                      <Smartphone className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                      <span>Buka Kamera HP / Bawaan</span>
+                    </button>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">
+                    Tips: Pastikan pencahayaan cukup dan seragam siswa terlihat rapi untuk pasfoto Dapodik.
+                  </p>
                 </div>
               )}
             </div>
