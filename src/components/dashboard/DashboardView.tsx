@@ -45,7 +45,8 @@ export const DashboardView: React.FC = () => {
     currentUser,
     setCurrentTab,
     lastSavedAt,
-    saveAllData
+    saveAllData,
+    setIsAcademicYearModalOpen
   } = useApp();
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -311,9 +312,15 @@ export const DashboardView: React.FC = () => {
             <div>
               <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
                 Identitas Kelas & Pendidik Aktif
-                <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-                  TA {schoolInfo.academicYear}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsAcademicYearModalOpen(true)}
+                  className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-700 hover:bg-indigo-100 dark:bg-indigo-950/70 dark:text-indigo-300 dark:hover:bg-indigo-900 border border-indigo-200 dark:border-indigo-800 transition-colors inline-flex items-center gap-1 cursor-pointer"
+                  title="Klik untuk memilih atau mengganti Tahun Pelajaran"
+                >
+                  <Calendar className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
+                  <span>TA {schoolInfo.academicYear} (Ganti TA)</span>
+                </button>
               </h2>
             </div>
           </div>

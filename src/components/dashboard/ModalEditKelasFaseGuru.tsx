@@ -20,7 +20,8 @@ import {
   Trash2,
   Phone,
   Mail,
-  ShieldCheck
+  ShieldCheck,
+  ArrowRight
 } from 'lucide-react';
 
 interface ModalEditKelasFaseGuruProps {
@@ -43,7 +44,8 @@ export const ModalEditKelasFaseGuru: React.FC<ModalEditKelasFaseGuruProps> = ({
     deleteTeacher,
     currentUser,
     setCurrentTab,
-    addToast
+    addToast,
+    setIsAcademicYearModalOpen
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'kelas_fase' | 'wali_kelas' | 'daftar_guru'>('kelas_fase');
@@ -367,9 +369,23 @@ export const ModalEditKelasFaseGuru: React.FC<ModalEditKelasFaseGuruProps> = ({
 
               {/* Kolom Tahun Pelajaran - Dirapikan lebih kecil & proporsional sesuai kebutuhan isi teks */}
               <div className="w-full lg:w-44 shrink-0">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1.5">
-                  Tahun Pelajaran <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Tahun Pelajaran <span className="text-rose-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onClose();
+                      setIsAcademicYearModalOpen(true);
+                    }}
+                    className="text-[10px] text-blue-600 hover:text-blue-700 dark:text-blue-400 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                    title="Buka pemilih multi-tahun pelajaran"
+                  >
+                    <span>Pilih / Buat TA</span>
+                    <ArrowRight className="h-2.5 w-2.5" />
+                  </button>
+                </div>
                 <input
                   type="text"
                   required

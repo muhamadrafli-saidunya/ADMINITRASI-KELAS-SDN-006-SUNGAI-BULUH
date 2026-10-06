@@ -10,7 +10,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Save,
-  CheckCircle2
+  CheckCircle2,
+  Calendar
 } from 'lucide-react';
 
 interface TopbarProps {
@@ -33,7 +34,8 @@ export const Topbar: React.FC<TopbarProps> = ({
     schoolInfo,
     logout,
     saveAllData,
-    lastSavedAt
+    lastSavedAt,
+    setIsAcademicYearModalOpen
   } = useApp();
 
   const [isSaving, setIsSaving] = useState(false);
@@ -104,6 +106,15 @@ export const Topbar: React.FC<TopbarProps> = ({
             <span className="hidden sm:inline-flex items-center rounded-md bg-blue-50 px-2 py-0.5 text-[11px] font-bold text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800/60">
               {schoolInfo.className}
             </span>
+            <button
+              type="button"
+              onClick={() => setIsAcademicYearModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition-all cursor-pointer shadow-2xs group"
+              title="Klik untuk memilih / mengganti Tahun Pelajaran"
+            >
+              <Calendar className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
+              <span>TA {schoolInfo.academicYear}</span>
+            </button>
           </div>
           <p className="hidden md:block truncate text-xs text-slate-500 dark:text-slate-400">
             {currentInfo.subtitle}

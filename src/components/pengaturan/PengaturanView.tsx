@@ -54,7 +54,9 @@ export const PengaturanView: React.FC = () => {
     availableUsers,
     setCurrentTab,
     currentUser,
-    addToast
+    addToast,
+    setIsAcademicYearModalOpen,
+    availableAcademicYears
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'profil' | 'logo_kop' | 'tema' | 'pengguna' | 'hak_akses' | 'database'>('profil');
@@ -526,9 +528,20 @@ export const PengaturanView: React.FC = () => {
 
               {/* Kolom Tahun Ajaran (Ukuran Disesuaikan Rapi & Lebih Kecil) */}
               <div className="lg:col-span-4">
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Tahun Ajaran *
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Tahun Ajaran *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setIsAcademicYearModalOpen(true)}
+                    className="text-[10px] text-blue-600 hover:text-blue-700 font-bold hover:underline cursor-pointer flex items-center gap-0.5"
+                    title="Buka pemilih multi-tahun pelajaran"
+                  >
+                    <span>Pilih / Ganti TA</span>
+                    <ArrowRight className="h-2.5 w-2.5" />
+                  </button>
+                </div>
                 <input
                   type="text"
                   required
@@ -538,7 +551,7 @@ export const PengaturanView: React.FC = () => {
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-xs text-slate-800 dark:text-white font-mono font-bold text-center tracking-wide focus:outline-none focus:border-blue-500"
                 />
                 <div className="flex items-center gap-1 mt-1">
-                  {['2025/2026', '2026/2027', '2027/2028'].map(yr => (
+                  {availableAcademicYears.slice(0, 4).map(yr => (
                     <button
                       key={yr}
                       type="button"

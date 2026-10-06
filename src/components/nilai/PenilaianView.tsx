@@ -28,6 +28,8 @@ import {
   BarChart3,
   Award,
   Layers,
+  Calendar,
+  Users,
   SlidersHorizontal,
   Plus,
   Edit2,
@@ -63,7 +65,8 @@ export const PenilaianView: React.FC = () => {
     currentUser,
     setCurrentTab,
     addToast,
-    resetAllTPGradesToZero
+    resetAllTPGradesToZero,
+    setIsAcademicYearModalOpen
   } = useApp();
 
   const safeSubjects = subjects || [];
@@ -488,8 +491,18 @@ export const PenilaianView: React.FC = () => {
 
                   <span className="text-[10.5px] font-semibold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 px-2.5 py-0.5 rounded-lg flex items-center gap-1">
                     <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                    <span>Aktif: {activeSemester} (Nilai tersimpan aman per semester)</span>
+                    <span>Aktif: {activeSemester} (Nilai per semester)</span>
                   </span>
+
+                  <button
+                    type="button"
+                    onClick={() => setIsAcademicYearModalOpen(true)}
+                    className="inline-flex items-center gap-1 text-[10.5px] font-bold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 px-2.5 py-1 rounded-lg hover:bg-indigo-100 dark:hover:bg-indigo-900 transition-colors cursor-pointer"
+                    title="Klik untuk memilih atau mengganti Tahun Pelajaran"
+                  >
+                    <Calendar className="h-3 w-3 text-indigo-500" />
+                    <span>TA {schoolInfo.academicYear} (Ganti TA)</span>
+                  </button>
                 </div>
               </div>
 
@@ -861,7 +874,49 @@ export const PenilaianView: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800/60">
-                    {filteredStudents.map(student => {
+                    {filteredStudents.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={7 + currentSubjectTPs.length}
+                          className="px-6 py-12 text-center text-slate-500 dark:text-slate-400 bg-white dark:bg-slate-900"
+                        >
+                          <div className="flex flex-col items-center justify-center max-w-md mx-auto space-y-3">
+                            <div className="h-12 w-12 rounded-2xl bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                              <Users className="h-6 w-6" />
+                            </div>
+                            <h4 className="text-sm font-bold text-slate-800 dark:text-white">
+                              {safeStudents.length === 0
+                                ? `Belum Ada Data Siswa pada Tahun Pelajaran ${schoolInfo.academicYear}`
+                                : 'Tidak ada siswa yang sesuai filter pencarian / agama'}
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 text-center leading-relaxed">
+                              {safeStudents.length === 0
+                                ? 'Tahun pelajaran baru ini dimulai dengan lembar kerja bersih (tanpa siswa & tanpa nilai 0). Silakan tambahkan data siswa di menu Data Siswa atau impor dari Excel.'
+                                : 'Silakan sesuaikan filter agama atau kata kunci pencarian nama siswa.'}
+                            </p>
+                            {safeStudents.length === 0 && (
+                              <div className="flex items-center gap-2 pt-2 flex-wrap justify-center">
+                                <button
+                                  type="button"
+                                  onClick={() => setCurrentTab('siswa')}
+                                  className="px-3.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                                >
+                                  Tambah / Kelola Data Siswa
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setIsAcademicYearModalOpen(true)}
+                                  className="px-3.5 py-1.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 text-xs font-bold hover:bg-indigo-100 cursor-pointer"
+                                >
+                                  Pilih Tahun Pelajaran Lain
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredStudents.map(student => {
                       const sts = getGradeValue(student.id, selectedSubjectId, 'Sumatif_STS', 0);
                       const sas = getGradeValue(student.id, selectedSubjectId, 'Sumatif_SAS', 0);
                       const summary = getStudentGradeSummary(student.id, selectedSubjectId, activeSemester);
@@ -984,7 +1039,8 @@ export const PenilaianView: React.FC = () => {
                           </td>
                         </tr>
                       );
-                    })}
+                    })
+                  )}
                   </tbody>
                 </table>
               </div>

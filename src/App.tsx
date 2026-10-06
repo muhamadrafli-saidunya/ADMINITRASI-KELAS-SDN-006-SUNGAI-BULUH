@@ -6,6 +6,7 @@ import { Topbar } from './components/layout/Topbar';
 import { RoleSwitcherModal } from './components/auth/RoleSwitcherModal';
 import { ToastContainer } from './components/common/ToastContainer';
 import { SubMenuHeader } from './components/common/SubMenuHeader';
+import { AcademicYearSwitcherModal } from './components/common/AcademicYearSwitcherModal';
 
 import { WelcomeSplashScreen } from './components/auth/WelcomeSplashScreen';
 import { LoginView } from './components/auth/LoginView';
@@ -112,6 +113,9 @@ const MainLayout: React.FC = () => {
         isOpen={isRoleModalOpen}
         onClose={() => setIsRoleModalOpen(false)}
       />
+
+      {/* Academic Year Switcher Modal (Multi-Tahun Pelajaran) */}
+      <AcademicYearSwitcherModal />
 
       {/* Main Structural Layout */}
       <div className="flex flex-1 relative overflow-x-hidden print:block print:overflow-visible print:static">

@@ -374,6 +374,14 @@ interface AppContextType {
   saveAllData: () => { success: boolean; timestamp: string };
   isAutoSaveActive: boolean;
 
+  // Academic Year Multi-Year Management
+  availableAcademicYears: string[];
+  switchAcademicYear: (year: string) => void;
+  addAcademicYear: (year: string) => void;
+  isAcademicYearModalOpen: boolean;
+  setIsAcademicYearModalOpen: (open: boolean) => void;
+  getStudentCountForYear: (year: string) => number;
+
   // Quick Action Modal helpers
   selectedStudentForModal: Student | null;
   setSelectedStudentForModal: (student: Student | null) => void;
@@ -382,6 +390,11 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 const STORAGE_PREFIX = 'admin_kelas_sd_v1_';
+export const DEFAULT_ACADEMIC_YEARS = ['2024/2025', '2025/2026', '2026/2027', '2027/2028', '2028/2029'];
+
+export const getYearStorageKey = (year?: string): string => {
+  return (year || '2026/2027').replace(/[^a-zA-Z0-9]/g, '_');
+};
 
 export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   // Read initial from localStorage or fall back safely
@@ -468,8 +481,71 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     return updated;
   });
 
+  const [availableAcademicYears, setAvailableAcademicYears] = useState<string[]>(() => {
+    const saved = getSaved('availableYears', DEFAULT_ACADEMIC_YEARS);
+    if (!Array.isArray(saved) || saved.length === 0) return DEFAULT_ACADEMIC_YEARS;
+    const currentYr = schoolInfo?.academicYear || INITIAL_SCHOOL_INFO.academicYear || '2025/2026';
+    if (!saved.includes(currentYr)) {
+      return [...saved, currentYr].sort();
+    }
+    return saved;
+  });
+
+  const [isAcademicYearModalOpen, setIsAcademicYearModalOpen] = useState<boolean>(false);
+
+  // Helper to read data specifically for the current active academic year
+  const getYearSaved = <T,>(itemKey: string, fallback: T): T => {
+    try {
+      const activeYear = schoolInfo?.academicYear || INITIAL_SCHOOL_INFO.academicYear || '2025/2026';
+      const yk = getYearStorageKey(activeYear);
+      const isYearInit = typeof window !== 'undefined' && localStorage.getItem(STORAGE_PREFIX + `${yk}_initialized`) === 'true';
+
+      if (isYearInit) {
+        const item = localStorage.getItem(STORAGE_PREFIX + `${yk}_${itemKey}`);
+        if (!item || item === 'null' || item === 'undefined') {
+          return (Array.isArray(fallback) ? [] : typeof fallback === 'object' && fallback !== null ? {} : fallback) as T;
+        }
+        const parsed = JSON.parse(item);
+        if (parsed !== null && parsed !== undefined) return parsed as T;
+      }
+
+      // If this is the initial seed baseline year and no academic year has ever been initialized yet,
+      // seed this baseline year using fallback / general storage
+      const hasInitAnyYear = typeof window !== 'undefined' && localStorage.getItem(STORAGE_PREFIX + 'has_initialized_any_year') === 'true';
+      const isSeedYear = !hasInitAnyYear && (activeYear === INITIAL_SCHOOL_INFO.academicYear || activeYear === '2025/2026');
+
+      if (isSeedYear) {
+        const generalItem = localStorage.getItem(STORAGE_PREFIX + itemKey);
+        if (generalItem && generalItem !== 'null' && generalItem !== 'undefined') {
+          const parsed = JSON.parse(generalItem);
+          if (parsed !== null && parsed !== undefined) {
+            localStorage.setItem(STORAGE_PREFIX + `${yk}_${itemKey}`, JSON.stringify(parsed));
+            localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+            localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+            return parsed as T;
+          }
+        }
+        // Save initial fallback
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_${itemKey}`, JSON.stringify(fallback));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+        localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+        return fallback;
+      }
+
+      // For any NEW or uninitialized academic year: must start fresh and empty!
+      // (Data awal masih kosong, tidak ada data siswa nilai 0)
+      return (Array.isArray(fallback) ? [] : typeof fallback === 'object' && fallback !== null ? {} : fallback) as T;
+    } catch {
+      return fallback;
+    }
+  };
+
+  const hasInitAnyYearGlobal = typeof window !== 'undefined' && localStorage.getItem(STORAGE_PREFIX + 'has_initialized_any_year') === 'true';
+  const currentActiveYear = schoolInfo?.academicYear || INITIAL_SCHOOL_INFO.academicYear || '2025/2026';
+  const isSeedYearGlobal = !hasInitAnyYearGlobal && (currentActiveYear === INITIAL_SCHOOL_INFO.academicYear || currentActiveYear === '2025/2026');
+
   const [students, setStudents] = useState<Student[]>(() => 
-    getSaved('students', INITIAL_STUDENTS)
+    getYearSaved('students', isSeedYearGlobal ? INITIAL_STUDENTS : [])
   );
 
   const [teachers, setTeachers] = useState<Teacher[]>(() => 
@@ -578,12 +654,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [grades, setGrades] = useState<GradeRecord[]>(() => {
-    const saved = getSaved('grades', null);
+    const saved = getYearSaved('grades', isSeedYearGlobal ? generateInitialGrades() : []);
     if (!saved || !Array.isArray(saved) || saved.length === 0) {
-      // Standard: change children's scores in every TP to number 0
-      const initial = generateInitialGrades();
-      localStorage.setItem(STORAGE_PREFIX + 'grades', JSON.stringify(initial));
-      return initial;
+      return [];
     }
     // Migration: ensure every item has a normalized semester tag (default to '1 (Ganjil)' if missing)
     let hasModified = false;
@@ -609,32 +682,34 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   });
 
   const [studentReports, setStudentReports] = useState<Record<string, StudentReportData>>(() => 
-    getSaved('studentReports', generateInitialStudentReports())
+    getYearSaved('studentReports', isSeedYearGlobal ? generateInitialStudentReports() : {})
   );
 
   const [attendanceRecords, setAttendanceRecords] = useState<AttendanceRecord[]>(() => {
-    const saved = getSaved('attendance', null);
+    const saved = getYearSaved('attendance', isSeedYearGlobal ? generateInitialAttendance() : []);
     if (!saved || !Array.isArray(saved) || saved.length === 0) {
-      return generateInitialAttendance();
+      return [];
     }
-    // If saved attendance only has 1 month, merge initial attendance so historical semester data is visible
-    const distinctMonths = new Set(saved.map((r: any) => r.tanggal?.substring(0, 7)).filter(Boolean));
-    if (distinctMonths.size <= 1) {
-      const initial = generateInitialAttendance();
-      const existingIds = new Set(saved.map((r: any) => r.id));
-      const combined = [...saved];
-      initial.forEach(rec => {
-        if (!existingIds.has(rec.id)) {
-          combined.push(rec);
-        }
-      });
-      return combined;
+    // If saved attendance only has 1 month in seed year, merge initial attendance so historical semester data is visible
+    if (isSeedYearGlobal) {
+      const distinctMonths = new Set(saved.map((r: any) => r.tanggal?.substring(0, 7)).filter(Boolean));
+      if (distinctMonths.size <= 1) {
+        const initial = generateInitialAttendance();
+        const existingIds = new Set(saved.map((r: any) => r.id));
+        const combined = [...saved];
+        initial.forEach(rec => {
+          if (!existingIds.has(rec.id)) {
+            combined.push(rec);
+          }
+        });
+        return combined;
+      }
     }
     return saved;
   });
 
   const [journals, setJournals] = useState<TeachingJournal[]>(() => 
-    getSaved('journals', INITIAL_JOURNALS)
+    getYearSaved('journals', isSeedYearGlobal ? INITIAL_JOURNALS : [])
   );
 
   const [modulAjarList, setModulAjarList] = useState<ModulAjar[]>(() => 
@@ -646,11 +721,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   );
 
   const [transactions, setTransactions] = useState<CashTransaction[]>(() => 
-    getSaved('transactions', INITIAL_CASH_TRANSACTIONS)
+    getYearSaved('transactions', isSeedYearGlobal ? INITIAL_CASH_TRANSACTIONS : [])
   );
 
   const [weeklyDues, setWeeklyDues] = useState<StudentWeeklyDues[]>(() => 
-    getSaved('weeklyDues', generateInitialDues())
+    getYearSaved('weeklyDues', isSeedYearGlobal ? generateInitialDues() : [])
   );
 
   const [inventory, setInventory] = useState<InventoryItem[]>(() => 
@@ -658,15 +733,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   );
 
   const [counseling, setCounseling] = useState<CounselingRecord[]>(() => 
-    getSaved('counseling', INITIAL_COUNSELING)
+    getYearSaved('counseling', isSeedYearGlobal ? INITIAL_COUNSELING : [])
   );
 
   const [cleaningDuties, setCleaningDuties] = useState<CleaningDuty[]>(() => 
-    getSaved('cleaningDuties', INITIAL_DUTIES)
+    getYearSaved('cleaningDuties', isSeedYearGlobal ? INITIAL_DUTIES : [])
   );
 
   const [events, setEvents] = useState<SchoolEvent[]>(() => 
-    getSaved('events', INITIAL_EVENTS)
+    getYearSaved('events', isSeedYearGlobal ? INITIAL_EVENTS : [])
   );
 
   const [extracurriculars, setExtracurriculars] = useState<any[]>(() => 
@@ -675,19 +750,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Kokurikuler & DPL State
   const [projekKokurikulerList, setProjekKokurikulerList] = useState<ProjekKokurikuler[]>(() =>
-    getSaved('projekKokurikuler', INITIAL_PROJEK_KOKURIKULER)
+    getYearSaved('projekKokurikuler', isSeedYearGlobal ? INITIAL_PROJEK_KOKURIKULER : [])
   );
 
   const [dplAssessmentList, setDplAssessmentList] = useState<SiswaDPLCapaianRecord[]>(() =>
-    getSaved('dplAssessments', INITIAL_DPL_ASSESSMENTS)
+    getYearSaved('dplAssessments', isSeedYearGlobal ? INITIAL_DPL_ASSESSMENTS : [])
   );
 
   const [jurnalKokurikulerList, setJurnalKokurikulerList] = useState<JurnalAktivitasKokurikuler[]>(() =>
-    getSaved('jurnalKokurikuler', INITIAL_JURNAL_KOKURIKULER)
+    getYearSaved('jurnalKokurikuler', isSeedYearGlobal ? INITIAL_JURNAL_KOKURIKULER : [])
   );
 
   const [artefakKokurikulerList, setArtefakKokurikulerList] = useState<ArtefakKaryaKokurikuler[]>(() =>
-    getSaved('artefakKokurikuler', INITIAL_ARTEFAK_KOKURIKULER)
+    getYearSaved('artefakKokurikuler', isSeedYearGlobal ? INITIAL_ARTEFAK_KOKURIKULER : [])
   );
 
   const [dplDimensions] = useState<DimensiProfilLulusan[]>(DEFAULT_DPL_DIMENSIONS);
@@ -732,7 +807,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'students', JSON.stringify(students));
-  }, [students]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_students`, JSON.stringify(students));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [students, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'teachers', JSON.stringify(teachers));
@@ -748,15 +827,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'grades', JSON.stringify(grades));
-  }, [grades]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_grades`, JSON.stringify(grades));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [grades, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'attendance', JSON.stringify(attendanceRecords));
-  }, [attendanceRecords]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_attendance`, JSON.stringify(attendanceRecords));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [attendanceRecords, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'journals', JSON.stringify(journals));
-  }, [journals]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_journals`, JSON.stringify(journals));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [journals, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'modulAjar', JSON.stringify(modulAjarList));
@@ -768,11 +859,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'transactions', JSON.stringify(transactions));
-  }, [transactions]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_transactions`, JSON.stringify(transactions));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [transactions, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'weeklyDues', JSON.stringify(weeklyDues));
-  }, [weeklyDues]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_weeklyDues`, JSON.stringify(weeklyDues));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [weeklyDues, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'inventory', JSON.stringify(inventory));
@@ -780,15 +879,27 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'counseling', JSON.stringify(counseling));
-  }, [counseling]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_counseling`, JSON.stringify(counseling));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [counseling, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'cleaningDuties', JSON.stringify(cleaningDuties));
-  }, [cleaningDuties]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_cleaningDuties`, JSON.stringify(cleaningDuties));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [cleaningDuties, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'events', JSON.stringify(events));
-  }, [events]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_events`, JSON.stringify(events));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [events, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'extracurriculars', JSON.stringify(extracurriculars));
@@ -796,23 +907,43 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'studentReports', JSON.stringify(studentReports));
-  }, [studentReports]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_studentReports`, JSON.stringify(studentReports));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [studentReports, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'projekKokurikuler', JSON.stringify(projekKokurikulerList));
-  }, [projekKokurikulerList]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_projekKokurikuler`, JSON.stringify(projekKokurikulerList));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [projekKokurikulerList, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'dplAssessments', JSON.stringify(dplAssessmentList));
-  }, [dplAssessmentList]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_dplAssessments`, JSON.stringify(dplAssessmentList));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [dplAssessmentList, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'jurnalKokurikuler', JSON.stringify(jurnalKokurikulerList));
-  }, [jurnalKokurikulerList]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_jurnalKokurikuler`, JSON.stringify(jurnalKokurikulerList));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [jurnalKokurikulerList, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'artefakKokurikuler', JSON.stringify(artefakKokurikulerList));
-  }, [artefakKokurikulerList]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_artefakKokurikuler`, JSON.stringify(artefakKokurikulerList));
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+  }, [artefakKokurikulerList, schoolInfo?.academicYear]);
 
   // Toast Helper
   const addToast = (type: 'success' | 'error' | 'info' | 'warning', title: string, message: string) => {
@@ -917,31 +1048,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const handleBeforeUnload = () => {
       try {
         const d = latestDataRef.current;
+        const yk = getYearStorageKey(d.schoolInfo?.academicYear);
         localStorage.setItem(STORAGE_PREFIX + 'currentUser', JSON.stringify(d.currentUser));
         localStorage.setItem(STORAGE_PREFIX + 'users', JSON.stringify(d.availableUsers));
         localStorage.setItem(STORAGE_PREFIX + 'rolePermissions', JSON.stringify(d.rolePermissions));
         localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(d.schoolInfo));
         localStorage.setItem(STORAGE_PREFIX + 'students', JSON.stringify(d.students));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_students`, JSON.stringify(d.students));
         localStorage.setItem(STORAGE_PREFIX + 'teachers', JSON.stringify(d.teachers));
         localStorage.setItem(STORAGE_PREFIX + 'subjects', JSON.stringify(d.subjects));
         localStorage.setItem(STORAGE_PREFIX + 'tujuanPembelajaran', JSON.stringify(d.tujuanPembelajaranList));
         localStorage.setItem(STORAGE_PREFIX + 'grades', JSON.stringify(d.grades));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_grades`, JSON.stringify(d.grades));
         localStorage.setItem(STORAGE_PREFIX + 'attendance', JSON.stringify(d.attendanceRecords));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_attendance`, JSON.stringify(d.attendanceRecords));
         localStorage.setItem(STORAGE_PREFIX + 'journals', JSON.stringify(d.journals));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_journals`, JSON.stringify(d.journals));
         localStorage.setItem(STORAGE_PREFIX + 'modulAjar', JSON.stringify(d.modulAjarList));
         localStorage.setItem(STORAGE_PREFIX + 'schedule', JSON.stringify(d.schedule));
         localStorage.setItem(STORAGE_PREFIX + 'transactions', JSON.stringify(d.transactions));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_transactions`, JSON.stringify(d.transactions));
         localStorage.setItem(STORAGE_PREFIX + 'weeklyDues', JSON.stringify(d.weeklyDues));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_weeklyDues`, JSON.stringify(d.weeklyDues));
         localStorage.setItem(STORAGE_PREFIX + 'inventory', JSON.stringify(d.inventory));
         localStorage.setItem(STORAGE_PREFIX + 'counseling', JSON.stringify(d.counseling));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_counseling`, JSON.stringify(d.counseling));
         localStorage.setItem(STORAGE_PREFIX + 'cleaningDuties', JSON.stringify(d.cleaningDuties));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_cleaningDuties`, JSON.stringify(d.cleaningDuties));
         localStorage.setItem(STORAGE_PREFIX + 'events', JSON.stringify(d.events));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_events`, JSON.stringify(d.events));
         localStorage.setItem(STORAGE_PREFIX + 'extracurriculars', JSON.stringify(d.extracurriculars));
         localStorage.setItem(STORAGE_PREFIX + 'studentReports', JSON.stringify(d.studentReports));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_studentReports`, JSON.stringify(d.studentReports));
         localStorage.setItem(STORAGE_PREFIX + 'projekKokurikuler', JSON.stringify(d.projekKokurikulerList));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_projekKokurikuler`, JSON.stringify(d.projekKokurikulerList));
         localStorage.setItem(STORAGE_PREFIX + 'dplAssessments', JSON.stringify(d.dplAssessmentList));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_dplAssessments`, JSON.stringify(d.dplAssessmentList));
         localStorage.setItem(STORAGE_PREFIX + 'jurnalKokurikuler', JSON.stringify(d.jurnalKokurikulerList));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_jurnalKokurikuler`, JSON.stringify(d.jurnalKokurikulerList));
         localStorage.setItem(STORAGE_PREFIX + 'artefakKokurikuler', JSON.stringify(d.artefakKokurikulerList));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_artefakKokurikuler`, JSON.stringify(d.artefakKokurikulerList));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+        localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
       } catch (e) {
         console.error('Error auto-flushing on unload:', e);
       }
@@ -978,31 +1126,48 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const saveAllData = (): { success: boolean; timestamp: string } => {
     const formatted = getFormattedTimestamp();
     try {
+      const yk = getYearStorageKey(schoolInfo?.academicYear);
       localStorage.setItem(STORAGE_PREFIX + 'currentUser', JSON.stringify(currentUser));
       localStorage.setItem(STORAGE_PREFIX + 'users', JSON.stringify(availableUsers));
       localStorage.setItem(STORAGE_PREFIX + 'rolePermissions', JSON.stringify(rolePermissions));
       localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(schoolInfo));
       localStorage.setItem(STORAGE_PREFIX + 'students', JSON.stringify(students));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_students`, JSON.stringify(students));
       localStorage.setItem(STORAGE_PREFIX + 'teachers', JSON.stringify(teachers));
       localStorage.setItem(STORAGE_PREFIX + 'subjects', JSON.stringify(subjects));
       localStorage.setItem(STORAGE_PREFIX + 'tujuanPembelajaran', JSON.stringify(tujuanPembelajaranList));
       localStorage.setItem(STORAGE_PREFIX + 'grades', JSON.stringify(grades));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_grades`, JSON.stringify(grades));
       localStorage.setItem(STORAGE_PREFIX + 'attendance', JSON.stringify(attendanceRecords));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_attendance`, JSON.stringify(attendanceRecords));
       localStorage.setItem(STORAGE_PREFIX + 'journals', JSON.stringify(journals));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_journals`, JSON.stringify(journals));
       localStorage.setItem(STORAGE_PREFIX + 'modulAjar', JSON.stringify(modulAjarList));
       localStorage.setItem(STORAGE_PREFIX + 'schedule', JSON.stringify(schedule));
       localStorage.setItem(STORAGE_PREFIX + 'transactions', JSON.stringify(transactions));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_transactions`, JSON.stringify(transactions));
       localStorage.setItem(STORAGE_PREFIX + 'weeklyDues', JSON.stringify(weeklyDues));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_weeklyDues`, JSON.stringify(weeklyDues));
       localStorage.setItem(STORAGE_PREFIX + 'inventory', JSON.stringify(inventory));
       localStorage.setItem(STORAGE_PREFIX + 'counseling', JSON.stringify(counseling));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_counseling`, JSON.stringify(counseling));
       localStorage.setItem(STORAGE_PREFIX + 'cleaningDuties', JSON.stringify(cleaningDuties));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_cleaningDuties`, JSON.stringify(cleaningDuties));
       localStorage.setItem(STORAGE_PREFIX + 'events', JSON.stringify(events));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_events`, JSON.stringify(events));
       localStorage.setItem(STORAGE_PREFIX + 'extracurriculars', JSON.stringify(extracurriculars));
       localStorage.setItem(STORAGE_PREFIX + 'studentReports', JSON.stringify(studentReports));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_studentReports`, JSON.stringify(studentReports));
       localStorage.setItem(STORAGE_PREFIX + 'projekKokurikuler', JSON.stringify(projekKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_projekKokurikuler`, JSON.stringify(projekKokurikulerList));
       localStorage.setItem(STORAGE_PREFIX + 'dplAssessments', JSON.stringify(dplAssessmentList));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_dplAssessments`, JSON.stringify(dplAssessmentList));
       localStorage.setItem(STORAGE_PREFIX + 'jurnalKokurikuler', JSON.stringify(jurnalKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_jurnalKokurikuler`, JSON.stringify(jurnalKokurikulerList));
       localStorage.setItem(STORAGE_PREFIX + 'artefakKokurikuler', JSON.stringify(artefakKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_artefakKokurikuler`, JSON.stringify(artefakKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+      localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
       localStorage.setItem(STORAGE_PREFIX + 'lastSavedAt', formatted);
 
       setLastSavedAt(formatted);
@@ -1254,8 +1419,244 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     addToast('info', 'Role Diperbarui', `Beralih ke akun ${target.name} (${target.title})`);
   };
 
+  // Academic Year Multi-Year Management
+  const switchAcademicYear = (targetYear: string) => {
+    const trimmedTarget = targetYear.trim();
+    if (!trimmedTarget) return;
+
+    const currentYear = schoolInfo?.academicYear || INITIAL_SCHOOL_INFO.academicYear || '2025/2026';
+    if (trimmedTarget === currentYear) {
+      return;
+    }
+
+    // 1. Synchronously save all current in-memory state under currentYear's storage key
+    const currYk = getYearStorageKey(currentYear);
+    try {
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_students`, JSON.stringify(students));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_grades`, JSON.stringify(grades));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_studentReports`, JSON.stringify(studentReports));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_attendance`, JSON.stringify(attendanceRecords));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_journals`, JSON.stringify(journals));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_transactions`, JSON.stringify(transactions));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_weeklyDues`, JSON.stringify(weeklyDues));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_cleaningDuties`, JSON.stringify(cleaningDuties));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_counseling`, JSON.stringify(counseling));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_events`, JSON.stringify(events));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_projekKokurikuler`, JSON.stringify(projekKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_dplAssessments`, JSON.stringify(dplAssessmentList));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_jurnalKokurikuler`, JSON.stringify(jurnalKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_artefakKokurikuler`, JSON.stringify(artefakKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_initialized`, 'true');
+      localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+    } catch (e) {
+      console.warn('Error saving current year data before switch:', e);
+    }
+
+    // 2. Ensure target year is registered in availableAcademicYears
+    setAvailableAcademicYears(prev => {
+      if (!prev.includes(trimmedTarget)) {
+        const nextYears = [...prev, trimmedTarget].sort();
+        try {
+          localStorage.setItem(STORAGE_PREFIX + 'availableYears', JSON.stringify(nextYears));
+        } catch {}
+        return nextYears;
+      }
+      return prev;
+    });
+
+    // 3. Check if targetYear already has initialized data
+    const nextYk = getYearStorageKey(trimmedTarget);
+    const isTargetInit = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_initialized`) === 'true';
+
+    let nextStudents: Student[] = [];
+    let nextGrades: GradeRecord[] = [];
+    let nextReports: Record<string, StudentReportData> = {};
+    let nextAttendance: AttendanceRecord[] = [];
+    let nextJournals: TeachingJournal[] = [];
+    let nextTransactions: CashTransaction[] = [];
+    let nextWeeklyDues: StudentWeeklyDues[] = [];
+    let nextDuties: CleaningDuty[] = [];
+    let nextCounseling: CounselingRecord[] = [];
+    let nextEvents: SchoolEvent[] = [];
+    let nextProjek: ProjekKokurikuler[] = [];
+    let nextDpl: SiswaDPLCapaianRecord[] = [];
+    let nextJurnalKok: JurnalAktivitasKokurikuler[] = [];
+    let nextArtefakKok: ArtefakKaryaKokurikuler[] = [];
+
+    if (isTargetInit) {
+      // Load saved data for this specific academic year
+      try {
+        const rawStudents = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_students`);
+        if (rawStudents) nextStudents = JSON.parse(rawStudents) || [];
+
+        const rawGrades = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_grades`);
+        if (rawGrades) nextGrades = JSON.parse(rawGrades) || [];
+
+        const rawReports = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_studentReports`);
+        if (rawReports) nextReports = JSON.parse(rawReports) || {};
+
+        const rawAtt = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_attendance`);
+        if (rawAtt) nextAttendance = JSON.parse(rawAtt) || [];
+
+        const rawJournals = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_journals`);
+        if (rawJournals) nextJournals = JSON.parse(rawJournals) || [];
+
+        const rawTx = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_transactions`);
+        if (rawTx) nextTransactions = JSON.parse(rawTx) || [];
+
+        const rawDues = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_weeklyDues`);
+        if (rawDues) nextWeeklyDues = JSON.parse(rawDues) || [];
+
+        const rawDuties = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_cleaningDuties`);
+        if (rawDuties) nextDuties = JSON.parse(rawDuties) || [];
+
+        const rawCounseling = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_counseling`);
+        if (rawCounseling) nextCounseling = JSON.parse(rawCounseling) || [];
+
+        const rawEvents = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_events`);
+        if (rawEvents) nextEvents = JSON.parse(rawEvents) || [];
+
+        const rawProjek = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_projekKokurikuler`);
+        if (rawProjek) nextProjek = JSON.parse(rawProjek) || [];
+
+        const rawDpl = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_dplAssessments`);
+        if (rawDpl) nextDpl = JSON.parse(rawDpl) || [];
+
+        const rawJurnalKok = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_jurnalKokurikuler`);
+        if (rawJurnalKok) nextJurnalKok = JSON.parse(rawJurnalKok) || [];
+
+        const rawArtefakKok = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_artefakKokurikuler`);
+        if (rawArtefakKok) nextArtefakKok = JSON.parse(rawArtefakKok) || [];
+      } catch (err) {
+        console.error('Error parsing existing year data:', err);
+      }
+    } else {
+      // BRAND NEW ACADEMIC YEAR: Fresh clean slate (No students, no score 0)
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_students`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_grades`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_studentReports`, JSON.stringify({}));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_attendance`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_journals`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_transactions`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_weeklyDues`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_cleaningDuties`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_counseling`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_events`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_projekKokurikuler`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_dplAssessments`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_jurnalKokurikuler`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_artefakKokurikuler`, JSON.stringify([]));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_initialized`, 'true');
+      localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+    }
+
+    // 4. Update React states
+    setStudents(nextStudents);
+    setGrades(nextGrades);
+    setStudentReports(nextReports);
+    setAttendanceRecords(nextAttendance);
+    setJournals(nextJournals);
+    setTransactions(nextTransactions);
+    setWeeklyDues(nextWeeklyDues);
+    setCleaningDuties(nextDuties);
+    setCounseling(nextCounseling);
+    setEvents(nextEvents);
+    setProjekKokurikulerList(nextProjek);
+    setDplAssessmentList(nextDpl);
+    setJurnalKokurikulerList(nextJurnalKok);
+    setArtefakKokurikulerList(nextArtefakKok);
+
+    // 5. Update general storage to match the new active year
+    try {
+      localStorage.setItem(STORAGE_PREFIX + 'students', JSON.stringify(nextStudents));
+      localStorage.setItem(STORAGE_PREFIX + 'grades', JSON.stringify(nextGrades));
+      localStorage.setItem(STORAGE_PREFIX + 'studentReports', JSON.stringify(nextReports));
+      localStorage.setItem(STORAGE_PREFIX + 'attendance', JSON.stringify(nextAttendance));
+      localStorage.setItem(STORAGE_PREFIX + 'journals', JSON.stringify(nextJournals));
+      localStorage.setItem(STORAGE_PREFIX + 'transactions', JSON.stringify(nextTransactions));
+      localStorage.setItem(STORAGE_PREFIX + 'weeklyDues', JSON.stringify(nextWeeklyDues));
+      localStorage.setItem(STORAGE_PREFIX + 'cleaningDuties', JSON.stringify(nextDuties));
+      localStorage.setItem(STORAGE_PREFIX + 'counseling', JSON.stringify(nextCounseling));
+      localStorage.setItem(STORAGE_PREFIX + 'events', JSON.stringify(nextEvents));
+      localStorage.setItem(STORAGE_PREFIX + 'projekKokurikuler', JSON.stringify(nextProjek));
+      localStorage.setItem(STORAGE_PREFIX + 'dplAssessments', JSON.stringify(nextDpl));
+      localStorage.setItem(STORAGE_PREFIX + 'jurnalKokurikuler', JSON.stringify(nextJurnalKok));
+      localStorage.setItem(STORAGE_PREFIX + 'artefakKokurikuler', JSON.stringify(nextArtefakKok));
+    } catch {}
+
+    // 6. Update schoolInfo with new academicYear
+    const updatedSchoolInfo: SchoolInfo = {
+      ...schoolInfo,
+      academicYear: trimmedTarget
+    };
+    setSchoolInfo(updatedSchoolInfo);
+    try {
+      localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(updatedSchoolInfo));
+    } catch {}
+    syncSchoolInfo(updatedSchoolInfo).catch(err => console.warn('[Firestore] Sync schoolInfo warning:', err));
+
+    // 7. Informative Toast
+    if (isTargetInit) {
+      addToast(
+        'info',
+        `Tahun Pelajaran: ${trimmedTarget}`,
+        `Beralih ke Tahun Pelajaran ${trimmedTarget}. Memuat ${nextStudents.length} data siswa dan riwayat penilaian tersimpan.`
+      );
+    } else {
+      addToast(
+        'success',
+        `Tahun Pelajaran Baru: ${trimmedTarget}`,
+        `Tahun Pelajaran ${trimmedTarget} aktif! Data awal masih kosong (0 siswa & tanpa nilai 0), siap diinput.`
+      );
+    }
+  };
+
+  const addAcademicYear = (year: string) => {
+    const trimmed = year.trim();
+    if (!trimmed) return;
+    setAvailableAcademicYears(prev => {
+      if (!prev.includes(trimmed)) {
+        const nextYears = [...prev, trimmed].sort();
+        try {
+          localStorage.setItem(STORAGE_PREFIX + 'availableYears', JSON.stringify(nextYears));
+        } catch {}
+        return nextYears;
+      }
+      return prev;
+    });
+    switchAcademicYear(trimmed);
+  };
+
+  const getStudentCountForYear = (year: string): number => {
+    if (year === schoolInfo?.academicYear) {
+      return students.length;
+    }
+    const yk = getYearStorageKey(year);
+    const isInit = localStorage.getItem(STORAGE_PREFIX + `${yk}_initialized`) === 'true';
+    if (!isInit) {
+      if (year === INITIAL_SCHOOL_INFO.academicYear || year === '2025/2026') {
+        const hasInitAny = localStorage.getItem(STORAGE_PREFIX + 'has_initialized_any_year') === 'true';
+        if (!hasInitAny) return INITIAL_STUDENTS.length;
+      }
+      return 0;
+    }
+    try {
+      const raw = localStorage.getItem(STORAGE_PREFIX + `${yk}_students`);
+      if (!raw) return 0;
+      const parsed = JSON.parse(raw);
+      return Array.isArray(parsed) ? parsed.length : 0;
+    } catch {
+      return 0;
+    }
+  };
+
   // School Info
   const updateSchoolInfo = (info: Partial<SchoolInfo>) => {
+    // If academicYear changed in info, trigger switchAcademicYear first
+    if (info.academicYear && info.academicYear.trim() && info.academicYear.trim() !== schoolInfo?.academicYear) {
+      switchAcademicYear(info.academicYear.trim());
+    }
+
     let semesterChanged = false;
     let newSemester = '';
 
@@ -1309,7 +1710,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Semester Aktif: ${norm}`,
         `Sistem beralih ke ${norm}. Nilai semester sebelumnya tersimpan aman dan tidak akan hilang. Nilai ${norm} siap diinput (dimulai dari 0 untuk nilai baru).`
       );
-    } else {
+    } else if (!info.academicYear || info.academicYear.trim() === schoolInfo?.academicYear) {
       addToast('success', 'Berhasil', 'Informasi sekolah & kelas berhasil diperbarui');
     }
   };
@@ -3364,6 +3765,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Reset & Backup
   const resetAllDataToDefault = () => {
     localStorage.clear();
+    const yk = getYearStorageKey(INITIAL_SCHOOL_INFO.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
     setSchoolInfo(INITIAL_SCHOOL_INFO);
     setStudents(INITIAL_STUDENTS);
     setTeachers(INITIAL_TEACHERS);
@@ -3642,6 +4046,12 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         lastSavedAt,
         saveAllData,
         isAutoSaveActive: true,
+        availableAcademicYears,
+        switchAcademicYear,
+        addAcademicYear,
+        isAcademicYearModalOpen,
+        setIsAcademicYearModalOpen,
+        getStudentCountForYear,
         selectedStudentForModal,
         setSelectedStudentForModal
       }}

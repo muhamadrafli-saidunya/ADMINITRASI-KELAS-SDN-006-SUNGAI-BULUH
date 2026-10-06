@@ -56,7 +56,7 @@ export const SubMenuHeader: React.FC<SubMenuHeaderProps> = ({
   badge,
   actions
 }) => {
-  const { currentTab, setCurrentTab, goBack, schoolInfo } = useApp();
+  const { currentTab, setCurrentTab, goBack, schoolInfo, setIsAcademicYearModalOpen } = useApp();
 
   if (currentTab === 'dashboard') {
     return null;
@@ -119,14 +119,20 @@ export const SubMenuHeader: React.FC<SubMenuHeaderProps> = ({
         <div className="flex items-center gap-2 shrink-0 self-end sm:self-center">
           {actions}
           <div className="hidden lg:flex items-center gap-2 text-right border-l border-slate-200 dark:border-slate-800 pl-3">
-            <div>
-              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200">
-                {schoolInfo.className} • {schoolInfo.academicYear}
+            <button
+              type="button"
+              onClick={() => setIsAcademicYearModalOpen(true)}
+              className="text-right hover:opacity-80 transition-opacity cursor-pointer group"
+              title="Klik untuk memilih / mengganti Tahun Pelajaran"
+            >
+              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-200 flex items-center justify-end gap-1 group-hover:text-indigo-600 dark:group-hover:text-indigo-400">
+                <span>{schoolInfo.className} • {schoolInfo.academicYear}</span>
+                <Calendar className="h-3 w-3 text-indigo-500" />
               </p>
               <p className="text-[10px] text-slate-400">
-                Semester {schoolInfo.semester}
+                Semester {schoolInfo.semester} (Ganti TA)
               </p>
-            </div>
+            </button>
           </div>
         </div>
       </div>

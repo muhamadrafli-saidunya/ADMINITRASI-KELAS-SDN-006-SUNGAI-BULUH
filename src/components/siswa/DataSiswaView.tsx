@@ -59,7 +59,8 @@ export const DataSiswaView: React.FC = () => {
     schoolInfo,
     setCurrentTab,
     addToast,
-    bulkImportStudents
+    bulkImportStudents,
+    setIsAcademicYearModalOpen
   } = useApp();
 
   // Search & Filter States
@@ -322,6 +323,16 @@ export const DataSiswaView: React.FC = () => {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsAcademicYearModalOpen(true)}
+              className="flex items-center gap-1.5 rounded-xl border border-indigo-200 bg-indigo-50/80 px-3 py-2 text-xs font-bold text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900/60 active:scale-95 transition-all shadow-2xs cursor-pointer"
+              title="Ganti atau pilih Tahun Pelajaran"
+            >
+              <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+              <span>TA {schoolInfo.academicYear}</span>
+            </button>
+
             {isTeacherOrAdmin && (
               <>
                 <button
