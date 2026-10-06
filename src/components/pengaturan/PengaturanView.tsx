@@ -56,13 +56,31 @@ export const PengaturanView: React.FC = () => {
     currentUser,
     addToast,
     setIsAcademicYearModalOpen,
-    availableAcademicYears
+    availableAcademicYears,
+    getSchoolInfoForYear
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'profil' | 'logo_kop' | 'tema' | 'pengguna' | 'hak_akses' | 'database'>('profil');
   const [formData, setFormData] = useState<SchoolInfo>({ ...schoolInfo });
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
   const [isPhaseModalOpen, setIsPhaseModalOpen] = useState(false);
+
+  const handleSelectYearInSettings = (targetYear: string) => {
+    const saved = getSchoolInfoForYear(targetYear);
+    if (saved) {
+      setFormData(prev => ({
+        ...prev,
+        ...saved,
+        academicYear: targetYear
+      }));
+      addToast('info', `Tahun Pelajaran: ${targetYear}`, `Form disesuaikan dengan profil ${saved.className || 'Kelas'} (${saved.homeroomTeacherName || 'Wali Kelas'}).`);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        academicYear: targetYear
+      }));
+    }
+  };
   const [selectedPhaseForModal, setSelectedPhaseForModal] = useState<CurriculumPhaseKey>('fase_b');
 
   useEffect(() => {
@@ -555,7 +573,7 @@ export const PengaturanView: React.FC = () => {
                     <button
                       key={yr}
                       type="button"
-                      onClick={() => setFormData({ ...formData, academicYear: yr })}
+                      onClick={() => handleSelectYearInSettings(yr)}
                       className={`flex-1 py-0.5 text-[10px] font-mono rounded border text-center transition-all cursor-pointer ${
                         formData.academicYear === yr
                           ? 'bg-blue-50 border-blue-300 text-blue-700 font-bold'

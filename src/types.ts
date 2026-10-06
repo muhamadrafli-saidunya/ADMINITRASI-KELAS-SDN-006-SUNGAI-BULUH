@@ -44,6 +44,8 @@ export interface SchoolInfo {
   headmasterNip: string;
   homeroomTeacherName: string;
   homeroomTeacherNip: string;
+  teacherName?: string; // Alias for homeroom teacher name
+  teacherNip?: string; // Alias for homeroom teacher NIP
   className: string;
   phase: string; // Fase B (Kelas 3-4)
   academicYear: string;

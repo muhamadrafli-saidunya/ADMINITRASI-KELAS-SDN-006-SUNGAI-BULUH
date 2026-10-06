@@ -376,15 +376,21 @@ interface AppContextType {
 
   // Academic Year Multi-Year Management
   availableAcademicYears: string[];
-  switchAcademicYear: (year: string) => void;
-  addAcademicYear: (year: string) => void;
+  switchAcademicYear: (year: string, initialConfig?: AcademicYearOptions) => void;
+  addAcademicYear: (year: string, initialConfig?: AcademicYearOptions) => void;
+  updateSchoolInfoForYear: (year: string, info: Partial<SchoolInfo>) => void;
   isAcademicYearModalOpen: boolean;
   setIsAcademicYearModalOpen: (open: boolean) => void;
   getStudentCountForYear: (year: string) => number;
+  getSchoolInfoForYear: (year: string) => Partial<SchoolInfo> | null;
 
   // Quick Action Modal helpers
   selectedStudentForModal: Student | null;
   setSelectedStudentForModal: (student: Student | null) => void;
+}
+
+export interface AcademicYearOptions extends Partial<SchoolInfo> {
+  copyStudentsFromYear?: string;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -465,6 +471,23 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [schoolInfo, setSchoolInfo] = useState<SchoolInfo>(() => {
     const saved = getSaved('schoolInfo', INITIAL_SCHOOL_INFO);
     const updated = { ...saved };
+    const currentYr = updated.academicYear || INITIAL_SCHOOL_INFO.academicYear || '2025/2026';
+    const yk = getYearStorageKey(currentYr);
+    if (typeof window !== 'undefined') {
+      const yearSpecific = localStorage.getItem(STORAGE_PREFIX + `${yk}_schoolInfo`);
+      if (yearSpecific) {
+        try {
+          const parsed = JSON.parse(yearSpecific);
+          if (parsed && typeof parsed === 'object') {
+            Object.assign(updated, parsed);
+          }
+        } catch {}
+      } else {
+        try {
+          localStorage.setItem(STORAGE_PREFIX + `${yk}_schoolInfo`, JSON.stringify(updated));
+        } catch {}
+      }
+    }
     if (!updated.kurikulum || updated.kurikulum === 'Kurikulum Merdeka') {
       updated.kurikulum = 'Kurikulum Merdeka Pembelajaran Mendalam (KMPM)';
     }
@@ -498,42 +521,45 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       const activeYear = schoolInfo?.academicYear || INITIAL_SCHOOL_INFO.academicYear || '2025/2026';
       const yk = getYearStorageKey(activeYear);
-      const isYearInit = typeof window !== 'undefined' && localStorage.getItem(STORAGE_PREFIX + `${yk}_initialized`) === 'true';
 
-      if (isYearInit) {
+      // 1. First priority: Direct saved item for this specific academic year
+      if (typeof window !== 'undefined') {
         const item = localStorage.getItem(STORAGE_PREFIX + `${yk}_${itemKey}`);
-        if (!item || item === 'null' || item === 'undefined') {
-          return (Array.isArray(fallback) ? [] : typeof fallback === 'object' && fallback !== null ? {} : fallback) as T;
+        if (item && item !== 'null' && item !== 'undefined') {
+          try {
+            const parsed = JSON.parse(item);
+            if (parsed !== null && parsed !== undefined) return parsed as T;
+          } catch {}
         }
-        const parsed = JSON.parse(item);
-        if (parsed !== null && parsed !== undefined) return parsed as T;
       }
 
-      // If this is the initial seed baseline year and no academic year has ever been initialized yet,
-      // seed this baseline year using fallback / general storage
+      // 2. If this is the initial seed baseline year, migrate from legacy general storage or fallback
       const hasInitAnyYear = typeof window !== 'undefined' && localStorage.getItem(STORAGE_PREFIX + 'has_initialized_any_year') === 'true';
       const isSeedYear = !hasInitAnyYear && (activeYear === INITIAL_SCHOOL_INFO.academicYear || activeYear === '2025/2026');
 
-      if (isSeedYear) {
+      if (isSeedYear && typeof window !== 'undefined') {
         const generalItem = localStorage.getItem(STORAGE_PREFIX + itemKey);
         if (generalItem && generalItem !== 'null' && generalItem !== 'undefined') {
-          const parsed = JSON.parse(generalItem);
-          if (parsed !== null && parsed !== undefined) {
-            localStorage.setItem(STORAGE_PREFIX + `${yk}_${itemKey}`, JSON.stringify(parsed));
-            localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
-            localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
-            return parsed as T;
-          }
+          try {
+            const parsed = JSON.parse(generalItem);
+            if (parsed !== null && parsed !== undefined) {
+              localStorage.setItem(STORAGE_PREFIX + `${yk}_${itemKey}`, JSON.stringify(parsed));
+              localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+              localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+              return parsed as T;
+            }
+          } catch {}
         }
         // Save initial fallback
-        localStorage.setItem(STORAGE_PREFIX + `${yk}_${itemKey}`, JSON.stringify(fallback));
-        localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
-        localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+        try {
+          localStorage.setItem(STORAGE_PREFIX + `${yk}_${itemKey}`, JSON.stringify(fallback));
+          localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+          localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
+        } catch {}
         return fallback;
       }
 
-      // For any NEW or uninitialized academic year: must start fresh and empty!
-      // (Data awal masih kosong, tidak ada data siswa nilai 0)
+      // For any brand new academic year: clean empty slate
       return (Array.isArray(fallback) ? [] : typeof fallback === 'object' && fallback !== null ? {} : fallback) as T;
     } catch {
       return fallback;
@@ -713,11 +739,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   );
 
   const [modulAjarList, setModulAjarList] = useState<ModulAjar[]>(() => 
-    getSaved('modulAjar', INITIAL_MODUL_AJAR_LIST)
+    getYearSaved('modulAjar', isSeedYearGlobal ? INITIAL_MODUL_AJAR_LIST : [])
   );
 
   const [schedule, setSchedule] = useState<ScheduleItem[]>(() => 
-    getSaved('schedule', INITIAL_SCHEDULE)
+    getYearSaved('schedule', isSeedYearGlobal ? INITIAL_SCHEDULE : [])
   );
 
   const [transactions, setTransactions] = useState<CashTransaction[]>(() => 
@@ -803,6 +829,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(schoolInfo));
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_schoolInfo`, JSON.stringify(schoolInfo));
   }, [schoolInfo]);
 
   useEffect(() => {
@@ -851,11 +879,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'modulAjar', JSON.stringify(modulAjarList));
-  }, [modulAjarList]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_modulAjar`, JSON.stringify(modulAjarList));
+  }, [modulAjarList, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'schedule', JSON.stringify(schedule));
-  }, [schedule]);
+    const yk = getYearStorageKey(schoolInfo?.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_schedule`, JSON.stringify(schedule));
+  }, [schedule, schoolInfo?.academicYear]);
 
   useEffect(() => {
     localStorage.setItem(STORAGE_PREFIX + 'transactions', JSON.stringify(transactions));
@@ -1053,6 +1085,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(STORAGE_PREFIX + 'users', JSON.stringify(d.availableUsers));
         localStorage.setItem(STORAGE_PREFIX + 'rolePermissions', JSON.stringify(d.rolePermissions));
         localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(d.schoolInfo));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_schoolInfo`, JSON.stringify(d.schoolInfo));
         localStorage.setItem(STORAGE_PREFIX + 'students', JSON.stringify(d.students));
         localStorage.setItem(STORAGE_PREFIX + `${yk}_students`, JSON.stringify(d.students));
         localStorage.setItem(STORAGE_PREFIX + 'teachers', JSON.stringify(d.teachers));
@@ -1065,7 +1098,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         localStorage.setItem(STORAGE_PREFIX + 'journals', JSON.stringify(d.journals));
         localStorage.setItem(STORAGE_PREFIX + `${yk}_journals`, JSON.stringify(d.journals));
         localStorage.setItem(STORAGE_PREFIX + 'modulAjar', JSON.stringify(d.modulAjarList));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_modulAjar`, JSON.stringify(d.modulAjarList));
         localStorage.setItem(STORAGE_PREFIX + 'schedule', JSON.stringify(d.schedule));
+        localStorage.setItem(STORAGE_PREFIX + `${yk}_schedule`, JSON.stringify(d.schedule));
         localStorage.setItem(STORAGE_PREFIX + 'transactions', JSON.stringify(d.transactions));
         localStorage.setItem(STORAGE_PREFIX + `${yk}_transactions`, JSON.stringify(d.transactions));
         localStorage.setItem(STORAGE_PREFIX + 'weeklyDues', JSON.stringify(d.weeklyDues));
@@ -1131,6 +1166,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.setItem(STORAGE_PREFIX + 'users', JSON.stringify(availableUsers));
       localStorage.setItem(STORAGE_PREFIX + 'rolePermissions', JSON.stringify(rolePermissions));
       localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(schoolInfo));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_schoolInfo`, JSON.stringify(schoolInfo));
       localStorage.setItem(STORAGE_PREFIX + 'students', JSON.stringify(students));
       localStorage.setItem(STORAGE_PREFIX + `${yk}_students`, JSON.stringify(students));
       localStorage.setItem(STORAGE_PREFIX + 'teachers', JSON.stringify(teachers));
@@ -1143,7 +1179,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.setItem(STORAGE_PREFIX + 'journals', JSON.stringify(journals));
       localStorage.setItem(STORAGE_PREFIX + `${yk}_journals`, JSON.stringify(journals));
       localStorage.setItem(STORAGE_PREFIX + 'modulAjar', JSON.stringify(modulAjarList));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_modulAjar`, JSON.stringify(modulAjarList));
       localStorage.setItem(STORAGE_PREFIX + 'schedule', JSON.stringify(schedule));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_schedule`, JSON.stringify(schedule));
       localStorage.setItem(STORAGE_PREFIX + 'transactions', JSON.stringify(transactions));
       localStorage.setItem(STORAGE_PREFIX + `${yk}_transactions`, JSON.stringify(transactions));
       localStorage.setItem(STORAGE_PREFIX + 'weeklyDues', JSON.stringify(weeklyDues));
@@ -1420,18 +1458,19 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   };
 
   // Academic Year Multi-Year Management
-  const switchAcademicYear = (targetYear: string) => {
+  const switchAcademicYear = (targetYear: string, initialConfig?: AcademicYearOptions) => {
     const trimmedTarget = targetYear.trim();
     if (!trimmedTarget) return;
 
     const currentYear = schoolInfo?.academicYear || INITIAL_SCHOOL_INFO.academicYear || '2025/2026';
-    if (trimmedTarget === currentYear) {
+    if (trimmedTarget === currentYear && !initialConfig) {
       return;
     }
 
     // 1. Synchronously save all current in-memory state under currentYear's storage key
     const currYk = getYearStorageKey(currentYear);
     try {
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_schoolInfo`, JSON.stringify(schoolInfo));
       localStorage.setItem(STORAGE_PREFIX + `${currYk}_students`, JSON.stringify(students));
       localStorage.setItem(STORAGE_PREFIX + `${currYk}_grades`, JSON.stringify(grades));
       localStorage.setItem(STORAGE_PREFIX + `${currYk}_studentReports`, JSON.stringify(studentReports));
@@ -1446,6 +1485,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.setItem(STORAGE_PREFIX + `${currYk}_dplAssessments`, JSON.stringify(dplAssessmentList));
       localStorage.setItem(STORAGE_PREFIX + `${currYk}_jurnalKokurikuler`, JSON.stringify(jurnalKokurikulerList));
       localStorage.setItem(STORAGE_PREFIX + `${currYk}_artefakKokurikuler`, JSON.stringify(artefakKokurikulerList));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_modulAjar`, JSON.stringify(modulAjarList));
+      localStorage.setItem(STORAGE_PREFIX + `${currYk}_schedule`, JSON.stringify(schedule));
       localStorage.setItem(STORAGE_PREFIX + `${currYk}_initialized`, 'true');
       localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
     } catch (e) {
@@ -1466,7 +1507,21 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     // 3. Check if targetYear already has initialized data
     const nextYk = getYearStorageKey(trimmedTarget);
-    const isTargetInit = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_initialized`) === 'true';
+    const rawSchoolInfo = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_schoolInfo`);
+    const rawStudents = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_students`);
+    const isTargetInit =
+      localStorage.getItem(STORAGE_PREFIX + `${nextYk}_initialized`) === 'true' ||
+      !!rawSchoolInfo ||
+      !!rawStudents ||
+      trimmedTarget === INITIAL_SCHOOL_INFO.academicYear ||
+      trimmedTarget === '2025/2026';
+
+    let nextSchoolInfo: SchoolInfo = {
+      ...INITIAL_SCHOOL_INFO,
+      ...schoolInfo,
+      academicYear: trimmedTarget,
+      ...(initialConfig || {})
+    };
 
     let nextStudents: Student[] = [];
     let nextGrades: GradeRecord[] = [];
@@ -1482,75 +1537,291 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     let nextDpl: SiswaDPLCapaianRecord[] = [];
     let nextJurnalKok: JurnalAktivitasKokurikuler[] = [];
     let nextArtefakKok: ArtefakKaryaKokurikuler[] = [];
+    let nextModulAjar: ModulAjar[] = [];
+    let nextSchedule: ScheduleItem[] = [];
 
     if (isTargetInit) {
-      // Load saved data for this specific academic year
+      // Load saved schoolInfo & data for this specific academic year
       try {
-        const rawStudents = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_students`);
-        if (rawStudents) nextStudents = JSON.parse(rawStudents) || [];
+        if (rawSchoolInfo) {
+          const parsed = JSON.parse(rawSchoolInfo);
+          if (parsed && typeof parsed === 'object') {
+            nextSchoolInfo = {
+              ...INITIAL_SCHOOL_INFO,
+              ...schoolInfo,
+              ...parsed,
+              academicYear: trimmedTarget,
+              ...(initialConfig || {})
+            };
+          }
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacySchool = localStorage.getItem(STORAGE_PREFIX + 'schoolInfo');
+          let parsedLegacy = INITIAL_SCHOOL_INFO;
+          if (legacySchool) {
+            try { parsedLegacy = JSON.parse(legacySchool); } catch {}
+          }
+          nextSchoolInfo = {
+            ...INITIAL_SCHOOL_INFO,
+            ...parsedLegacy,
+            academicYear: trimmedTarget,
+            ...(initialConfig || {})
+          };
+        }
 
+        // Students
+        if (rawStudents) {
+          nextStudents = JSON.parse(rawStudents) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacyStudents = localStorage.getItem(STORAGE_PREFIX + 'students');
+          if (legacyStudents) {
+            try { nextStudents = JSON.parse(legacyStudents) || []; } catch {}
+          } else {
+            nextStudents = INITIAL_STUDENTS;
+          }
+        }
+
+        // Grades
         const rawGrades = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_grades`);
-        if (rawGrades) nextGrades = JSON.parse(rawGrades) || [];
+        if (rawGrades) {
+          nextGrades = JSON.parse(rawGrades) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacyGrades = localStorage.getItem(STORAGE_PREFIX + 'grades');
+          if (legacyGrades) {
+            try { nextGrades = JSON.parse(legacyGrades) || []; } catch {}
+          } else {
+            nextGrades = generateInitialGrades();
+          }
+        }
 
+        // Reports
         const rawReports = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_studentReports`);
-        if (rawReports) nextReports = JSON.parse(rawReports) || {};
+        if (rawReports) {
+          nextReports = JSON.parse(rawReports) || {};
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacyReports = localStorage.getItem(STORAGE_PREFIX + 'studentReports');
+          if (legacyReports) {
+            try { nextReports = JSON.parse(legacyReports) || {}; } catch {}
+          } else {
+            nextReports = generateInitialStudentReports();
+          }
+        }
 
+        // Attendance
         const rawAtt = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_attendance`);
-        if (rawAtt) nextAttendance = JSON.parse(rawAtt) || [];
+        if (rawAtt) {
+          nextAttendance = JSON.parse(rawAtt) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacyAtt = localStorage.getItem(STORAGE_PREFIX + 'attendance');
+          if (legacyAtt) {
+            try { nextAttendance = JSON.parse(legacyAtt) || []; } catch {}
+          } else {
+            nextAttendance = generateInitialAttendance();
+          }
+        }
 
+        // Journals
         const rawJournals = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_journals`);
-        if (rawJournals) nextJournals = JSON.parse(rawJournals) || [];
+        if (rawJournals) {
+          nextJournals = JSON.parse(rawJournals) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacyJournals = localStorage.getItem(STORAGE_PREFIX + 'journals');
+          if (legacyJournals) {
+            try { nextJournals = JSON.parse(legacyJournals) || []; } catch {}
+          } else {
+            nextJournals = INITIAL_JOURNALS;
+          }
+        }
 
+        // Transactions
         const rawTx = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_transactions`);
-        if (rawTx) nextTransactions = JSON.parse(rawTx) || [];
+        if (rawTx) {
+          nextTransactions = JSON.parse(rawTx) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacyTx = localStorage.getItem(STORAGE_PREFIX + 'transactions');
+          if (legacyTx) {
+            try { nextTransactions = JSON.parse(legacyTx) || []; } catch {}
+          } else {
+            nextTransactions = INITIAL_CASH_TRANSACTIONS;
+          }
+        }
 
+        // Weekly Dues
         const rawDues = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_weeklyDues`);
-        if (rawDues) nextWeeklyDues = JSON.parse(rawDues) || [];
+        if (rawDues) {
+          nextWeeklyDues = JSON.parse(rawDues) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          const legacyDues = localStorage.getItem(STORAGE_PREFIX + 'weeklyDues');
+          if (legacyDues) {
+            try { nextWeeklyDues = JSON.parse(legacyDues) || []; } catch {}
+          } else {
+            nextWeeklyDues = generateInitialDues();
+          }
+        }
 
+        // Duties
         const rawDuties = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_cleaningDuties`);
-        if (rawDuties) nextDuties = JSON.parse(rawDuties) || [];
+        if (rawDuties) {
+          nextDuties = JSON.parse(rawDuties) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextDuties = INITIAL_DUTIES;
+        }
 
+        // Counseling
         const rawCounseling = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_counseling`);
-        if (rawCounseling) nextCounseling = JSON.parse(rawCounseling) || [];
+        if (rawCounseling) {
+          nextCounseling = JSON.parse(rawCounseling) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextCounseling = INITIAL_COUNSELING;
+        }
 
+        // Events
         const rawEvents = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_events`);
-        if (rawEvents) nextEvents = JSON.parse(rawEvents) || [];
+        if (rawEvents) {
+          nextEvents = JSON.parse(rawEvents) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextEvents = INITIAL_EVENTS;
+        }
 
+        // Projek
         const rawProjek = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_projekKokurikuler`);
-        if (rawProjek) nextProjek = JSON.parse(rawProjek) || [];
+        if (rawProjek) {
+          nextProjek = JSON.parse(rawProjek) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextProjek = INITIAL_PROJEK_KOKURIKULER;
+        }
 
+        // DPL
         const rawDpl = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_dplAssessments`);
-        if (rawDpl) nextDpl = JSON.parse(rawDpl) || [];
+        if (rawDpl) {
+          nextDpl = JSON.parse(rawDpl) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextDpl = INITIAL_DPL_ASSESSMENTS;
+        }
 
+        // Jurnal Kokurikuler
         const rawJurnalKok = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_jurnalKokurikuler`);
-        if (rawJurnalKok) nextJurnalKok = JSON.parse(rawJurnalKok) || [];
+        if (rawJurnalKok) {
+          nextJurnalKok = JSON.parse(rawJurnalKok) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextJurnalKok = INITIAL_JURNAL_KOKURIKULER;
+        }
 
+        // Artefak Kokurikuler
         const rawArtefakKok = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_artefakKokurikuler`);
-        if (rawArtefakKok) nextArtefakKok = JSON.parse(rawArtefakKok) || [];
+        if (rawArtefakKok) {
+          nextArtefakKok = JSON.parse(rawArtefakKok) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextArtefakKok = INITIAL_ARTEFAK_KOKURIKULER;
+        }
+
+        // Modul Ajar
+        const rawModulAjar = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_modulAjar`);
+        if (rawModulAjar) {
+          nextModulAjar = JSON.parse(rawModulAjar) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextModulAjar = INITIAL_MODUL_AJAR_LIST;
+        }
+
+        // Schedule
+        const rawSchedule = localStorage.getItem(STORAGE_PREFIX + `${nextYk}_schedule`);
+        if (rawSchedule) {
+          nextSchedule = JSON.parse(rawSchedule) || [];
+        } else if (trimmedTarget === INITIAL_SCHOOL_INFO.academicYear || trimmedTarget === '2025/2026') {
+          nextSchedule = INITIAL_SCHEDULE;
+        }
       } catch (err) {
         console.error('Error parsing existing year data:', err);
       }
     } else {
-      // BRAND NEW ACADEMIC YEAR: Fresh clean slate (No students, no score 0)
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_students`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_grades`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_studentReports`, JSON.stringify({}));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_attendance`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_journals`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_transactions`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_weeklyDues`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_cleaningDuties`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_counseling`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_events`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_projekKokurikuler`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_dplAssessments`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_jurnalKokurikuler`, JSON.stringify([]));
-      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_artefakKokurikuler`, JSON.stringify([]));
+      // BRAND NEW ACADEMIC YEAR: Fresh clean slate or optional student carryover
+      const startYear = parseInt(trimmedTarget.split('/')[0], 10) || 2026;
+      const endYear = parseInt(trimmedTarget.split('/')[1], 10) || startYear + 1;
+
+      nextSchoolInfo = {
+        ...INITIAL_SCHOOL_INFO,
+        ...schoolInfo,
+        academicYear: trimmedTarget,
+        semester: initialConfig?.semester || '1 (Ganjil)',
+        className: initialConfig?.className || '',
+        phase: initialConfig?.phase || schoolInfo.phase || 'Fase B (Kelas 3-4)',
+        homeroomTeacherName: initialConfig?.homeroomTeacherName || initialConfig?.teacherName || schoolInfo.homeroomTeacherName || '',
+        teacherName: initialConfig?.teacherName || initialConfig?.homeroomTeacherName || schoolInfo.teacherName || '',
+        homeroomTeacherNip: initialConfig?.homeroomTeacherNip || initialConfig?.teacherNip || schoolInfo.homeroomTeacherNip || '',
+        teacherNip: initialConfig?.teacherNip || initialConfig?.homeroomTeacherNip || schoolInfo.teacherNip || '',
+        headmasterName: initialConfig?.headmasterName || schoolInfo.headmasterName || INITIAL_SCHOOL_INFO.headmasterName,
+        headmasterNip: initialConfig?.headmasterNip || schoolInfo.headmasterNip || INITIAL_SCHOOL_INFO.headmasterNip,
+        tanggalRapor: `${schoolInfo.city || 'Kota Jakarta Selatan'}, 19 Desember ${startYear}`,
+        tanggalRaporMid: `${schoolInfo.city || 'Kota Jakarta Selatan'}, 10 Oktober ${startYear}`,
+        ...(initialConfig || {})
+      };
+
+      // Check if student carryover (Kenaikan Kelas) is requested
+      if (initialConfig?.copyStudentsFromYear) {
+        const srcYear = initialConfig.copyStudentsFromYear;
+        const srcYk = getYearStorageKey(srcYear);
+        let srcStudents: Student[] = [];
+        const srcRaw = localStorage.getItem(STORAGE_PREFIX + `${srcYk}_students`);
+        if (srcRaw) {
+          try { srcStudents = JSON.parse(srcRaw) || []; } catch {}
+        } else if (srcYear === currentYear) {
+          srcStudents = students;
+        }
+        nextStudents = srcStudents.map((st, i) => ({
+          ...st,
+          id: `std-promoted-${Date.now()}-${i + 1}`,
+          status: 'Aktif'
+        }));
+      } else {
+        nextStudents = [];
+      }
+
+      nextGrades = [];
+      nextReports = {};
+      nextAttendance = [];
+      nextJournals = [];
+      nextTransactions = [];
+      nextWeeklyDues = [];
+      nextDuties = [];
+      nextCounseling = [];
+      nextEvents = [];
+      nextProjek = [];
+      nextDpl = [];
+      nextJurnalKok = [];
+      nextArtefakKok = [];
+      nextModulAjar = [];
+      nextSchedule = [];
+
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_schoolInfo`, JSON.stringify(nextSchoolInfo));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_students`, JSON.stringify(nextStudents));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_grades`, JSON.stringify(nextGrades));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_studentReports`, JSON.stringify(nextReports));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_attendance`, JSON.stringify(nextAttendance));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_journals`, JSON.stringify(nextJournals));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_transactions`, JSON.stringify(nextTransactions));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_weeklyDues`, JSON.stringify(nextWeeklyDues));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_cleaningDuties`, JSON.stringify(nextDuties));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_counseling`, JSON.stringify(nextCounseling));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_events`, JSON.stringify(nextEvents));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_projekKokurikuler`, JSON.stringify(nextProjek));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_dplAssessments`, JSON.stringify(nextDpl));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_jurnalKokurikuler`, JSON.stringify(nextJurnalKok));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_artefakKokurikuler`, JSON.stringify(nextArtefakKok));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_modulAjar`, JSON.stringify(nextModulAjar));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_schedule`, JSON.stringify(nextSchedule));
       localStorage.setItem(STORAGE_PREFIX + `${nextYk}_initialized`, 'true');
       localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
     }
 
+    // Ensure teacher & homeroom names are strictly synchronized
+    const syncedTeacher = nextSchoolInfo.homeroomTeacherName || nextSchoolInfo.teacherName || '';
+    nextSchoolInfo.homeroomTeacherName = syncedTeacher;
+    nextSchoolInfo.teacherName = syncedTeacher;
+    const syncedNip = nextSchoolInfo.homeroomTeacherNip || nextSchoolInfo.teacherNip || '';
+    nextSchoolInfo.homeroomTeacherNip = syncedNip;
+    nextSchoolInfo.teacherNip = syncedNip;
+
     // 4. Update React states
+    setSchoolInfo(nextSchoolInfo);
     setStudents(nextStudents);
     setGrades(nextGrades);
     setStudentReports(nextReports);
@@ -1565,9 +1836,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setDplAssessmentList(nextDpl);
     setJurnalKokurikulerList(nextJurnalKok);
     setArtefakKokurikulerList(nextArtefakKok);
+    setModulAjarList(nextModulAjar);
+    setSchedule(nextSchedule);
 
     // 5. Update general storage to match the new active year
     try {
+      localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(nextSchoolInfo));
+      localStorage.setItem(STORAGE_PREFIX + `${nextYk}_schoolInfo`, JSON.stringify(nextSchoolInfo));
       localStorage.setItem(STORAGE_PREFIX + 'students', JSON.stringify(nextStudents));
       localStorage.setItem(STORAGE_PREFIX + 'grades', JSON.stringify(nextGrades));
       localStorage.setItem(STORAGE_PREFIX + 'studentReports', JSON.stringify(nextReports));
@@ -1582,36 +1857,31 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       localStorage.setItem(STORAGE_PREFIX + 'dplAssessments', JSON.stringify(nextDpl));
       localStorage.setItem(STORAGE_PREFIX + 'jurnalKokurikuler', JSON.stringify(nextJurnalKok));
       localStorage.setItem(STORAGE_PREFIX + 'artefakKokurikuler', JSON.stringify(nextArtefakKok));
+      localStorage.setItem(STORAGE_PREFIX + 'modulAjar', JSON.stringify(nextModulAjar));
+      localStorage.setItem(STORAGE_PREFIX + 'schedule', JSON.stringify(nextSchedule));
     } catch {}
 
-    // 6. Update schoolInfo with new academicYear
-    const updatedSchoolInfo: SchoolInfo = {
-      ...schoolInfo,
-      academicYear: trimmedTarget
-    };
-    setSchoolInfo(updatedSchoolInfo);
-    try {
-      localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(updatedSchoolInfo));
-    } catch {}
-    syncSchoolInfo(updatedSchoolInfo).catch(err => console.warn('[Firestore] Sync schoolInfo warning:', err));
+    syncSchoolInfo(nextSchoolInfo).catch(err => console.warn('[Firestore] Sync schoolInfo warning:', err));
 
-    // 7. Informative Toast
+    // 6. Informative Toast
+    const displayClass = nextSchoolInfo.className || '-';
+    const displayTeacher = nextSchoolInfo.homeroomTeacherName || nextSchoolInfo.teacherName || '-';
     if (isTargetInit) {
       addToast(
         'info',
         `Tahun Pelajaran: ${trimmedTarget}`,
-        `Beralih ke Tahun Pelajaran ${trimmedTarget}. Memuat ${nextStudents.length} data siswa dan riwayat penilaian tersimpan.`
+        `Beralih ke TP ${trimmedTarget} • Kelas: ${displayClass} • Wali Kelas: ${displayTeacher}. Memuat ${nextStudents.length} siswa, nilai, rapor, absensi, dan data tersimpan.`
       );
     } else {
       addToast(
         'success',
         `Tahun Pelajaran Baru: ${trimmedTarget}`,
-        `Tahun Pelajaran ${trimmedTarget} aktif! Data awal masih kosong (0 siswa & tanpa nilai 0), siap diinput.`
+        `Tahun Pelajaran ${trimmedTarget} aktif! Kelas: ${displayClass} • Wali Kelas: ${displayTeacher}. Data awal bersih (${nextStudents.length} siswa), siap diinput.`
       );
     }
   };
 
-  const addAcademicYear = (year: string) => {
+  const addAcademicYear = (year: string, initialConfig?: AcademicYearOptions) => {
     const trimmed = year.trim();
     if (!trimmed) return;
     setAvailableAcademicYears(prev => {
@@ -1624,7 +1894,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       }
       return prev;
     });
-    switchAcademicYear(trimmed);
+    switchAcademicYear(trimmed, initialConfig);
   };
 
   const getStudentCountForYear = (year: string): number => {
@@ -1632,29 +1902,85 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       return students.length;
     }
     const yk = getYearStorageKey(year);
-    const isInit = localStorage.getItem(STORAGE_PREFIX + `${yk}_initialized`) === 'true';
-    if (!isInit) {
-      if (year === INITIAL_SCHOOL_INFO.academicYear || year === '2025/2026') {
-        const hasInitAny = localStorage.getItem(STORAGE_PREFIX + 'has_initialized_any_year') === 'true';
-        if (!hasInitAny) return INITIAL_STUDENTS.length;
-      }
-      return 0;
-    }
     try {
       const raw = localStorage.getItem(STORAGE_PREFIX + `${yk}_students`);
-      if (!raw) return 0;
-      const parsed = JSON.parse(raw);
-      return Array.isArray(parsed) ? parsed.length : 0;
-    } catch {
-      return 0;
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) return parsed.length;
+      }
+    } catch {}
+    if (year === INITIAL_SCHOOL_INFO.academicYear || year === '2025/2026') {
+      const hasInitAny = localStorage.getItem(STORAGE_PREFIX + 'has_initialized_any_year') === 'true';
+      if (!hasInitAny) return INITIAL_STUDENTS.length;
+      try {
+        const legacy = localStorage.getItem(STORAGE_PREFIX + 'students');
+        if (legacy) {
+          const parsed = JSON.parse(legacy);
+          if (Array.isArray(parsed)) return parsed.length;
+        }
+      } catch {}
     }
+    return 0;
+  };
+
+  const getSchoolInfoForYear = (year: string): Partial<SchoolInfo> | null => {
+    if (year === schoolInfo?.academicYear) {
+      return schoolInfo;
+    }
+    const yk = getYearStorageKey(year);
+    const raw = typeof window !== 'undefined' ? localStorage.getItem(STORAGE_PREFIX + `${yk}_schoolInfo`) : null;
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object') {
+          const teacher = parsed.homeroomTeacherName || parsed.teacherName || '';
+          const nip = parsed.homeroomTeacherNip || parsed.teacherNip || '';
+          return {
+            ...parsed,
+            academicYear: year,
+            homeroomTeacherName: teacher,
+            teacherName: teacher,
+            homeroomTeacherNip: nip,
+            teacherNip: nip
+          };
+        }
+      } catch {}
+    }
+    if (year === INITIAL_SCHOOL_INFO.academicYear || year === '2025/2026') {
+      return INITIAL_SCHOOL_INFO;
+    }
+    return null;
+  };
+
+  const updateSchoolInfoForYear = (year: string, info: Partial<SchoolInfo>) => {
+    const trimmed = year.trim();
+    if (!trimmed) return;
+    if (trimmed === schoolInfo?.academicYear) {
+      updateSchoolInfo(info);
+      return;
+    }
+    const yk = getYearStorageKey(trimmed);
+    const existing = getSchoolInfoForYear(trimmed) || {};
+    const merged = { ...existing, ...info, academicYear: trimmed };
+    const homeroom = merged.homeroomTeacherName || merged.teacherName || '';
+    merged.homeroomTeacherName = homeroom;
+    merged.teacherName = homeroom;
+    const nip = merged.homeroomTeacherNip || merged.teacherNip || '';
+    merged.homeroomTeacherNip = nip;
+    merged.teacherNip = nip;
+    try {
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_schoolInfo`, JSON.stringify(merged));
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
+    } catch {}
+    addToast('success', `Tahun Pelajaran ${trimmed}`, `Data Kelas & Wali Kelas untuk TP ${trimmed} berhasil disimpan!`);
   };
 
   // School Info
   const updateSchoolInfo = (info: Partial<SchoolInfo>) => {
-    // If academicYear changed in info, trigger switchAcademicYear first
+    // If academicYear changed in info, trigger switchAcademicYear first with info config
     if (info.academicYear && info.academicYear.trim() && info.academicYear.trim() !== schoolInfo?.academicYear) {
-      switchAcademicYear(info.academicYear.trim());
+      switchAcademicYear(info.academicYear.trim(), info);
+      return;
     }
 
     let semesterChanged = false;
@@ -1662,6 +1988,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
     setSchoolInfo(prev => {
       const merged = { ...prev, ...info };
+      if (info.homeroomTeacherName && !info.teacherName) {
+        merged.teacherName = info.homeroomTeacherName;
+      } else if (info.teacherName && !info.homeroomTeacherName) {
+        merged.homeroomTeacherName = info.teacherName;
+      }
       if (info.semester && info.semester !== prev.semester) {
         semesterChanged = true;
         newSemester = info.semester;
@@ -1694,11 +2025,15 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
             };
           });
           localStorage.setItem(STORAGE_PREFIX + 'studentReports', JSON.stringify(updatedReports));
+          const yk = getYearStorageKey(merged.academicYear);
+          localStorage.setItem(STORAGE_PREFIX + `${yk}_studentReports`, JSON.stringify(updatedReports));
           return updatedReports;
         });
       }
 
       localStorage.setItem(STORAGE_PREFIX + 'schoolInfo', JSON.stringify(merged));
+      const yk = getYearStorageKey(merged.academicYear);
+      localStorage.setItem(STORAGE_PREFIX + `${yk}_schoolInfo`, JSON.stringify(merged));
       syncSchoolInfo(merged).catch(err => console.warn('[Firestore] Sync schoolInfo warning:', err));
       return merged;
     });
@@ -1710,7 +2045,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         `Semester Aktif: ${norm}`,
         `Sistem beralih ke ${norm}. Nilai semester sebelumnya tersimpan aman dan tidak akan hilang. Nilai ${norm} siap diinput (dimulai dari 0 untuk nilai baru).`
       );
-    } else if (!info.academicYear || info.academicYear.trim() === schoolInfo?.academicYear) {
+    } else {
       addToast('success', 'Berhasil', 'Informasi sekolah & kelas berhasil diperbarui');
     }
   };
@@ -3766,6 +4101,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const resetAllDataToDefault = () => {
     localStorage.clear();
     const yk = getYearStorageKey(INITIAL_SCHOOL_INFO.academicYear);
+    localStorage.setItem(STORAGE_PREFIX + `${yk}_schoolInfo`, JSON.stringify(INITIAL_SCHOOL_INFO));
     localStorage.setItem(STORAGE_PREFIX + `${yk}_initialized`, 'true');
     localStorage.setItem(STORAGE_PREFIX + 'has_initialized_any_year', 'true');
     setSchoolInfo(INITIAL_SCHOOL_INFO);
@@ -4049,9 +4385,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         availableAcademicYears,
         switchAcademicYear,
         addAcademicYear,
+        updateSchoolInfoForYear,
         isAcademicYearModalOpen,
         setIsAcademicYearModalOpen,
         getStudentCountForYear,
+        getSchoolInfoForYear,
         selectedStudentForModal,
         setSelectedStudentForModal
       }}

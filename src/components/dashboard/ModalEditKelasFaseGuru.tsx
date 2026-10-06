@@ -45,7 +45,9 @@ export const ModalEditKelasFaseGuru: React.FC<ModalEditKelasFaseGuruProps> = ({
     currentUser,
     setCurrentTab,
     addToast,
-    setIsAcademicYearModalOpen
+    setIsAcademicYearModalOpen,
+    availableAcademicYears,
+    getSchoolInfoForYear
   } = useApp();
 
   const [activeSubTab, setActiveSubTab] = useState<'kelas_fase' | 'wali_kelas' | 'daftar_guru'>('kelas_fase');
@@ -64,6 +66,27 @@ export const ModalEditKelasFaseGuru: React.FC<ModalEditKelasFaseGuruProps> = ({
     headmasterName: schoolInfo.headmasterName || '',
     headmasterNip: schoolInfo.headmasterNip || ''
   });
+
+  const handleSelectYearInModal = (targetYear: string) => {
+    const saved = getSchoolInfoForYear(targetYear);
+    if (saved) {
+      setFormData(prev => ({
+        ...prev,
+        academicYear: targetYear,
+        className: saved.className || prev.className,
+        phase: saved.phase || prev.phase,
+        homeroomTeacherName: saved.homeroomTeacherName || saved.teacherName || prev.homeroomTeacherName,
+        homeroomTeacherNip: saved.homeroomTeacherNip || saved.teacherNip || prev.homeroomTeacherNip,
+        semester: (saved.semester as any) || prev.semester
+      }));
+      addToast('info', `Tahun Pelajaran ${targetYear}`, `Form disesuaikan dengan rekaman ${saved.className || 'Kelas'} (${saved.homeroomTeacherName || 'Wali Kelas'}).`);
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        academicYear: targetYear
+      }));
+    }
+  };
 
   // Quick Teacher Form State
   const [isAddTeacherOpen, setIsAddTeacherOpen] = useState(false);
@@ -395,17 +418,17 @@ export const ModalEditKelasFaseGuru: React.FC<ModalEditKelasFaseGuruProps> = ({
                   className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-2.5 text-xs text-slate-800 dark:text-white font-mono font-bold text-center tracking-wide focus:outline-none focus:border-blue-500 shadow-xs"
                 />
                 <div className="flex items-center justify-between gap-1 mt-1.5">
-                  {['2025/2026', '2026/2027', '2027/2028'].map(yr => (
+                  {(availableAcademicYears && availableAcademicYears.length > 0 ? availableAcademicYears.slice(0, 4) : ['2024/2025', '2025/2026', '2026/2027', '2027/2028']).map(yr => (
                     <button
                       key={yr}
                       type="button"
-                      onClick={() => setFormData({ ...formData, academicYear: yr })}
+                      onClick={() => handleSelectYearInModal(yr)}
                       className={`flex-1 py-0.5 px-1 text-[10px] font-mono rounded-md border text-center transition-all cursor-pointer ${
                         formData.academicYear === yr
                           ? 'bg-blue-50 border-blue-300 text-blue-700 dark:bg-blue-950 dark:border-blue-700 dark:text-blue-300 font-bold'
                           : 'bg-slate-50 dark:bg-slate-800/60 border-slate-200 dark:border-slate-700 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                       }`}
-                      title={`Pilih Tahun Pelajaran ${yr}`}
+                      title={`Pilih dan sesuaikan data kelas untuk Tahun Pelajaran ${yr}`}
                     >
                       {yr.split('/')[0].slice(2)}/{yr.split('/')[1].slice(2)}
                     </button>
