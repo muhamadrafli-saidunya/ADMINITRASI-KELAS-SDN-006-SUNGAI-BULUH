@@ -10,6 +10,7 @@ import {
 } from './StudentCoverAndBiodataSheet';
 import { ModalEditBiodataSiswa } from './ModalEditBiodataSiswa';
 import { ModalCetakMassalSampul } from './ModalCetakMassalSampul';
+import { ModalTitimangsaRapor } from './ModalTitimangsaRapor';
 import {
   Printer,
   ChevronLeft,
@@ -25,7 +26,8 @@ import {
   Settings,
   Layout,
   Palette,
-  Eye
+  Eye,
+  Calendar
 } from 'lucide-react';
 
 interface SampulBiodataTabProps {
@@ -60,8 +62,13 @@ export const SampulBiodataTab: React.FC<SampulBiodataTabProps> = ({
   );
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
+  const [isTitimangsaModalOpen, setIsTitimangsaModalOpen] = useState<boolean>(false);
   const [batchPrintStudents, setBatchPrintStudents] = useState<Student[] | null>(null);
   const [isStylePickerOpen, setIsStylePickerOpen] = useState<boolean>(false);
+
+  const currentSemesterTanggal = schoolInfo.tanggalRapor || (schoolInfo.semester?.includes('2')
+    ? `${schoolInfo.city || 'Kota Jakarta Selatan'}, 20 Juni 2027`
+    : `${schoolInfo.city || 'Kota Jakarta Selatan'}, 19 Desember 2026`);
 
   // Settings
   const [settings, setSettings] = useState<CoverPrintSettings>({
@@ -71,8 +78,17 @@ export const SampulBiodataTab: React.FC<SampulBiodataTabProps> = ({
     showPhoto: true,
     showSignature: true,
     paperSize: 'A4',
+    reportDate: currentSemesterTanggal,
     admissionDate: `15 Juli ${parseInt(schoolInfo.academicYear.split('/')[0] || '2024', 10)}`
   });
+
+  // Sinkronisasi otomatis tanggal laporan sampul dengan tanggal rapor siswa
+  useEffect(() => {
+    setSettings(prev => ({
+      ...prev,
+      reportDate: schoolInfo.tanggalRapor || currentSemesterTanggal
+    }));
+  }, [schoolInfo.tanggalRapor, schoolInfo.city, schoolInfo.semester]);
 
   const currentStudentIndex = students.findIndex(s => s.id === selectedStudentId);
   const selectedStudent = students[currentStudentIndex] || students[0];
@@ -340,8 +356,58 @@ export const SampulBiodataTab: React.FC<SampulBiodataTabProps> = ({
             })}
           </div>
 
-          {/* Toggle Foto & TTD */}
-          <div className="flex flex-wrap items-center justify-between gap-4 pt-2 text-xs">
+          {/* Baris Pengaturan: Ukuran Kertas, Titimangsa Rapor & Toggle Foto/TTD */}
+          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100 dark:border-slate-800 text-xs">
+            <div className="flex flex-wrap items-center gap-3">
+              {/* Paper Size Selector (A4 vs F4 Folio) */}
+              <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 px-2 flex items-center gap-1">
+                  <FileText className="h-3.5 w-3.5 text-purple-600" />
+                  Ukuran Kertas:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, paperSize: 'A4' })}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settings.paperSize === 'A4'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-purple-600'
+                  }`}
+                  title="Ukuran A4: 21.0 x 29.7 cm"
+                >
+                  A4 (21 x 29.7 cm)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSettings({ ...settings, paperSize: 'F4' })}
+                  className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                    settings.paperSize === 'F4'
+                      ? 'bg-purple-600 text-white shadow-xs'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-purple-600'
+                  }`}
+                  title="Ukuran F4 / Folio: 21.5 x 33.0 cm (Standar Sampul & Rapor SD)"
+                >
+                  F4 / Folio (21.5 x 33 cm)
+                </button>
+              </div>
+
+              {/* Titimangsa Info & Tombol Ubah */}
+              <div className="flex items-center gap-1.5 bg-purple-50/70 dark:bg-purple-950/30 px-3 py-1.5 rounded-xl border border-purple-200 dark:border-purple-800/60">
+                <Calendar className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+                <span className="text-[11px] text-slate-700 dark:text-slate-300">
+                  Tanggal Pengesahan KS: <strong className="text-purple-900 dark:text-purple-200 font-bold">{settings.reportDate || currentSemesterTanggal}</strong>
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setIsTitimangsaModalOpen(true)}
+                  className="ml-1 text-[11px] font-extrabold text-purple-700 dark:text-purple-300 hover:underline px-1 py-0.5 cursor-pointer"
+                  title="Ubah penanggalan titimangsa untuk seluruh rapor & sampul"
+                >
+                  (Ubah Titimangsa)
+                </button>
+              </div>
+            </div>
+
             <div className="flex items-center gap-4">
               <label className="flex items-center gap-1.5 cursor-pointer select-none">
                 <input
@@ -362,10 +428,10 @@ export const SampulBiodataTab: React.FC<SampulBiodataTabProps> = ({
                 />
                 <span className="text-slate-700 dark:text-slate-300">Tanda Tangan Kepala Sekolah</span>
               </label>
-            </div>
 
-            <div className="text-xs text-slate-500 font-medium">
-              Siswa ke-<strong>{currentStudentIndex + 1}</strong> dari <strong>{students.length}</strong>
+              <div className="text-xs text-slate-500 font-medium pl-2 border-l border-slate-200 dark:border-slate-700">
+                Siswa <strong>{currentStudentIndex + 1}</strong> / <strong>{students.length}</strong>
+              </div>
             </div>
           </div>
         </div>
@@ -444,6 +510,14 @@ export const SampulBiodataTab: React.FC<SampulBiodataTabProps> = ({
           onClose={() => setIsBatchModalOpen(false)}
           onStartBatchPrint={handleStartBatchPrint}
           defaultSettings={settings}
+        />
+      )}
+
+      {/* Modal Titimangsa Rapor & Sampul */}
+      {isTitimangsaModalOpen && (
+        <ModalTitimangsaRapor
+          isOpen={isTitimangsaModalOpen}
+          onClose={() => setIsTitimangsaModalOpen(false)}
         />
       )}
 

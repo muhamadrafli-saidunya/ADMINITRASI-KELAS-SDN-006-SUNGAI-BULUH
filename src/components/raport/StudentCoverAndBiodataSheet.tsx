@@ -20,6 +20,7 @@ export interface CoverPrintSettings {
   showSignature: boolean;
   paperSize: 'A4' | 'F4';
   admissionDate?: string;
+  reportDate?: string;
 }
 
 interface StudentCoverAndBiodataSheetProps {
@@ -64,50 +65,105 @@ export const StudentCoverAndBiodataSheet: React.FC<StudentCoverAndBiodataSheetPr
   className = '',
   isPageBreakAfter = false
 }) => {
-  const { schoolInfo } = useApp();
+  const { schoolInfo, getStudentReport } = useApp();
+  const studentReport = getStudentReport ? getStudentReport(student.id) : undefined;
 
   const section: CoverPageSection = settings?.section || 'all';
   const coverStyle: CoverBorderStyle = settings?.coverStyle || 'batik_nusantara';
   const coverBorderColor: CoverBorderColor = settings?.coverBorderColor || 'monochrome';
   const showPhoto = settings?.showPhoto !== false;
   const showSignature = settings?.showSignature !== false;
+  const isF4 = settings?.paperSize === 'F4';
+  const paperSize = settings?.paperSize || 'A4';
   const admissionDate = settings?.admissionDate || `15 Juli ${parseInt(schoolInfo.academicYear.split('/')[0] || '2024', 10)}`;
+
+  // Default tanggal rapor semester sesuai semester aktif
+  const defaultSemesterTanggal = schoolInfo.semester?.includes('2')
+    ? `${schoolInfo.city || 'Kota Jakarta Selatan'}, 20 Juni 2027`
+    : `${schoolInfo.city || 'Kota Jakarta Selatan'}, 19 Desember 2026`;
+
+  // Tanggal & tempat titimangsa pengesahan di atas kepala sekolah (disamakan dengan lembar rapor siswa)
+  const reportReleaseDate = settings?.reportDate
+    || schoolInfo.tanggalRapor
+    || studentReport?.tempatTanggalRapor
+    || defaultSemesterTanggal;
 
   const shouldRenderCover = section === 'all' || section === 'cover';
   const shouldRenderSchool = section === 'all' || section === 'school_identity';
   const shouldRenderBiodata = section === 'all' || section === 'biodata';
 
-  const defaultCityDate = `${schoolInfo.city}, ${admissionDate}`;
   const colorTheme = getBorderColorClasses(coverBorderColor);
+
+  // Ukuran dan padding bingkai menyesuaikan ukuran kertas yang dipilih (A4 vs F4 Folio)
+  const coverScreenHeightClass = isF4 ? 'min-h-[1180px]' : 'min-h-[1050px]';
+  const coverPaddingClass = isF4 ? 'p-8 sm:p-14' : 'p-6 sm:p-10';
+  const middleSpacingClass = isF4 ? 'my-8 sm:my-12' : 'my-6 sm:my-8';
 
   // Frame styling classes for Cover Depan
   const getCoverFrameClass = () => {
     switch (coverStyle) {
       case 'batik_nusantara':
-        return `border-[5px] ${colorTheme.border} p-8 sm:p-12 relative shadow-xs`;
+        return `border-[5px] ${colorTheme.border} ${coverPaddingClass} relative shadow-xs`;
       case 'certificate_royal':
-        return `border-[6px] border-double ${colorTheme.border} p-8 sm:p-12 relative shadow-xs`;
+        return `border-[6px] border-double ${colorTheme.border} ${coverPaddingClass} relative shadow-xs`;
       case 'geometric_art':
-        return `border-4 ${colorTheme.border} outline outline-2 outline-offset-2 ${colorTheme.border} p-8 sm:p-12 relative shadow-xs`;
+        return `border-4 ${colorTheme.border} outline outline-2 outline-offset-2 ${colorTheme.border} ${coverPaddingClass} relative shadow-xs`;
       case 'vintage_ornate':
-        return `border-[5px] ${colorTheme.border} p-8 sm:p-12 relative shadow-xs`;
+        return `border-[5px] ${colorTheme.border} ${coverPaddingClass} relative shadow-xs`;
       case 'minimal_clean':
-        return `border-2 ${colorTheme.border} p-8 sm:p-12 relative shadow-xs`;
+        return `border-2 ${colorTheme.border} ${coverPaddingClass} relative shadow-xs`;
       case 'classic':
       default:
-        return `border-4 ${colorTheme.border} outline outline-2 outline-offset-4 ${colorTheme.border} p-8 sm:p-12 relative shadow-xs`;
+        return `border-4 ${colorTheme.border} outline outline-2 outline-offset-4 ${colorTheme.border} ${coverPaddingClass} relative shadow-xs`;
     }
   };
 
   return (
     <div className={`student-cover-biodata-container text-black print:text-black w-full ${className}`}>
+      {/* Dynamic Print CSS for chosen paper size and frame fitting */}
+      <style>{`
+        @media print {
+          @page {
+            size: ${isF4 ? '215mm 330mm' : '210mm 297mm'} !important;
+            margin: 8mm !important;
+          }
+          .cover-page {
+            height: ${isF4 ? '314mm' : '281mm'} !important;
+            min-height: ${isF4 ? '314mm' : '281mm'} !important;
+            max-height: ${isF4 ? '314mm' : '281mm'} !important;
+            width: 100% !important;
+            padding: ${isF4 ? '18mm 14mm' : '14mm 12mm'} !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+          }
+          .school-identity-page {
+            min-height: ${isF4 ? '314mm' : '281mm'} !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            page-break-after: always !important;
+            break-after: page !important;
+            padding: 12mm 14mm !important;
+          }
+          .student-biodata-page {
+            min-height: ${isF4 ? '314mm' : '281mm'} !important;
+            box-sizing: border-box !important;
+            page-break-inside: avoid !important;
+            break-inside: avoid !important;
+            padding: 12mm 14mm !important;
+          }
+        }
+      `}</style>
       
       {/* ========================================================================= */}
       {/* HALAMAN 1: COVER DEPAN RAPOR (SAMPUL LUAR)                                */}
       {/* ========================================================================= */}
       {shouldRenderCover && (
         <div
-          className={`cover-page bg-white min-h-[960px] flex flex-col justify-between items-center text-center ${getCoverFrameClass()} ${
+          className={`cover-page bg-white ${coverScreenHeightClass} flex flex-col justify-between items-center text-center ${getCoverFrameClass()} ${
             (shouldRenderSchool || shouldRenderBiodata || isPageBreakAfter) ? 'print-page-break mb-12 print:mb-0' : ''
           }`}
         >
@@ -140,7 +196,7 @@ export const StudentCoverAndBiodataSheet: React.FC<StudentCoverAndBiodataSheetPr
           </div>
 
           {/* Bagian Tengah: Box Nama Siswa & Identitas */}
-          <div className="w-full max-w-lg my-10 z-10">
+          <div className={`w-full max-w-lg ${middleSpacingClass} z-10`}>
             <div className="text-xs sm:text-sm font-semibold tracking-wider uppercase text-slate-600 mb-2">
               Nama Peserta Didik:
             </div>
@@ -549,9 +605,9 @@ export const StudentCoverAndBiodataSheet: React.FC<StudentCoverAndBiodataSheetPr
                 )}
               </div>
 
-              {/* Titimangsa & Tanda Tangan Kepala Sekolah */}
+              {/* Titimangsa & Tanda Tangan Kepala Sekolah (Sesuai Titimangsa Rapor) */}
               <div className="text-center text-xs sm:text-sm min-w-[240px]">
-                <p className="text-slate-800">{defaultCityDate}</p>
+                <p className="text-slate-800 font-semibold">{reportReleaseDate}</p>
                 <p className="font-bold text-slate-900 mt-1">Kepala Sekolah,</p>
                 
                 {/* Ruang Tanda Tangan & Stempel */}

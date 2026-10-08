@@ -253,6 +253,50 @@ export const ModalCetakMassalSampul: React.FC<ModalCetakMassalSampulProps> = ({
             </div>
           </div>
 
+          {/* Pilihan Ukuran Kertas & Bingkai */}
+          <div className="rounded-xl bg-slate-50 dark:bg-slate-800/60 p-4 border border-slate-200 dark:border-slate-700 space-y-3">
+            <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-700 dark:text-slate-300">
+              Pilihan Ukuran Kertas & Bingkai Sampul
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                settings.paperSize === 'A4'
+                  ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-purple-400'
+              }`}>
+                <input
+                  type="radio"
+                  name="massPaperSize"
+                  checked={settings.paperSize === 'A4'}
+                  onChange={() => setSettings({ ...settings, paperSize: 'A4' })}
+                  className="text-purple-600 focus:ring-purple-500"
+                />
+                <div>
+                  <p className="text-xs font-bold">A4 (21 x 29.7 cm)</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Bingkai proporsional standar A4</p>
+                </div>
+              </label>
+
+              <label className={`flex items-center gap-2.5 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                settings.paperSize === 'F4'
+                  ? 'border-purple-600 bg-purple-50/60 dark:bg-purple-950/40 text-purple-900 dark:text-purple-200'
+                  : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:border-purple-400'
+              }`}>
+                <input
+                  type="radio"
+                  name="massPaperSize"
+                  checked={settings.paperSize === 'F4'}
+                  onChange={() => setSettings({ ...settings, paperSize: 'F4' })}
+                  className="text-purple-600 focus:ring-purple-500"
+                />
+                <div>
+                  <p className="text-xs font-bold">F4 / Folio (21.5 x 33 cm)</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400">Bingkai memanjang sesuai kertas rapor F4</p>
+                </div>
+              </label>
+            </div>
+          </div>
+
           {/* Daftar Siswa */}
           <div className="space-y-3">
             <div className="flex items-center justify-between">

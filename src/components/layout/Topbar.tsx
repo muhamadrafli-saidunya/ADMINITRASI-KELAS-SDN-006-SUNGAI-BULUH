@@ -109,11 +109,11 @@ export const Topbar: React.FC<TopbarProps> = ({
             <button
               type="button"
               onClick={() => setIsAcademicYearModalOpen(true)}
-              className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg text-xs font-bold border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition-all cursor-pointer shadow-2xs group"
+              className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs sm:text-[13px] font-extrabold border border-indigo-200 bg-indigo-50/90 hover:bg-indigo-100 text-indigo-800 dark:border-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-200 dark:hover:bg-indigo-900/60 transition-all cursor-pointer shadow-2xs group"
               title="Klik untuk memilih / mengganti Tahun Pelajaran"
             >
-              <Calendar className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
-              <span>TA {schoolInfo.academicYear}</span>
+              <Calendar className="h-4 w-4 text-indigo-600 dark:text-indigo-400 group-hover:scale-110 transition-transform" />
+              <span className="font-extrabold tracking-wide">TA {schoolInfo.academicYear}</span>
             </button>
           </div>
           <p className="hidden md:block truncate text-xs text-slate-500 dark:text-slate-400">

@@ -177,6 +177,20 @@ export const DashboardView: React.FC = () => {
               <span className="rounded-lg bg-blue-700/60 px-2.5 py-1 text-xs font-semibold text-blue-100 border border-blue-400/30">
                 {schoolInfo.phase} • {schoolInfo.className}
               </span>
+              <button
+                type="button"
+                onClick={() => setIsAcademicYearModalOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 px-3.5 py-1 text-xs sm:text-sm font-black tracking-wide shadow-md shadow-amber-500/30 hover:shadow-amber-500/50 border border-amber-200 active:scale-95 transition-all cursor-pointer"
+                title="Tahun Ajaran Aktif - Klik untuk ganti atau kelola Tahun Ajaran"
+              >
+                <Calendar className="h-4 w-4 text-slate-950" />
+                <span className="font-black text-slate-950 uppercase text-xs sm:text-sm tracking-wider">
+                  TA {schoolInfo.academicYear}
+                </span>
+                <span className="text-[10px] font-extrabold px-1.5 py-0.5 rounded-md bg-black/15 text-slate-950">
+                  Ganti ▾
+                </span>
+              </button>
               <span className="text-xs text-blue-200/90 flex items-center gap-1 font-medium">
                 <Calendar className="h-3.5 w-3.5" />
                 {todayFormatted}
@@ -315,15 +329,16 @@ export const DashboardView: React.FC = () => {
               </h2>
               <button
                 type="button"
+                id="btn-switch-ta-dashboard"
                 onClick={() => setIsAcademicYearModalOpen(true)}
-                className="group inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-extrabold text-xs sm:text-sm tracking-wide shadow-sm shadow-indigo-600/25 hover:shadow-indigo-600/40 border border-indigo-400/40 transition-all active:scale-95 cursor-pointer"
+                className="group inline-flex items-center gap-2.5 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 via-indigo-700 to-blue-600 hover:from-indigo-700 hover:to-blue-700 text-white font-black text-sm sm:text-base tracking-wide shadow-md shadow-indigo-600/30 hover:shadow-indigo-600/50 border-2 border-indigo-300/60 transition-all active:scale-95 cursor-pointer ring-2 ring-indigo-500/20"
                 title="Klik untuk memilih atau mengganti Tahun Pelajaran"
               >
-                <Calendar className="h-4 w-4 text-indigo-200 group-hover:scale-110 transition-transform" />
-                <span className="font-extrabold tracking-wide uppercase">
+                <Calendar className="h-5 w-5 text-indigo-200 group-hover:scale-110 transition-transform" />
+                <span className="font-black tracking-wider uppercase text-sm sm:text-base drop-shadow-xs">
                   TA {schoolInfo.academicYear}
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-lg bg-white/20 text-white border border-white/30 backdrop-blur-xs">
+                <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-lg bg-white/25 text-white border border-white/40 backdrop-blur-xs shadow-xs">
                   Ganti TA ▾
                 </span>
               </button>
@@ -358,12 +373,12 @@ export const DashboardView: React.FC = () => {
             <p className="text-sm font-bold text-slate-900 dark:text-white">
               Kelas {schoolInfo.className}
             </p>
-            <div className="flex items-center gap-1.5 mt-1 text-xs flex-wrap">
-              <span className="text-slate-500 dark:text-slate-400 font-medium">
+            <div className="flex items-center gap-2 mt-1.5 text-xs flex-wrap">
+              <span className="text-slate-500 dark:text-slate-400 font-semibold">
                 Semester {schoolInfo.semester}
               </span>
               <span className="text-slate-300 dark:text-slate-600 font-bold">•</span>
-              <span className="inline-flex items-center font-extrabold text-indigo-700 dark:text-indigo-300 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded-md border border-indigo-200 dark:border-indigo-800 text-xs">
+              <span className="inline-flex items-center font-black text-indigo-800 dark:text-indigo-200 bg-indigo-100/90 dark:bg-indigo-950/80 px-2.5 py-1 rounded-lg border border-indigo-300 dark:border-indigo-700 text-xs sm:text-sm tracking-wide shadow-2xs">
                 TA {schoolInfo.academicYear}
               </span>
             </div>
