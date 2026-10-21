@@ -33,7 +33,9 @@ import {
   ArrowLeft,
   ArrowRight,
   Eye,
-  EyeOff
+  EyeOff,
+  Trophy,
+  Medal
 } from 'lucide-react';
 
 export const RaportView: React.FC = () => {
@@ -52,7 +54,7 @@ export const RaportView: React.FC = () => {
     calculateMidSemesterRankings
   } = useApp();
 
-  const [activeSubTab, setActiveSubTab] = useState<'cover_biodata' | 'individual' | 'rekap_leger'>('individual');
+  const [activeSubTab, setActiveSubTab] = useState<'cover_biodata' | 'individual' | 'rekap_leger' | 'piagam'>('individual');
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id || '');
   const [isEditModalOpen, setIsEditModalOpen] = useState<boolean>(false);
   const [isBatchModalOpen, setIsBatchModalOpen] = useState<boolean>(false);
@@ -248,6 +250,18 @@ export const RaportView: React.FC = () => {
           <span>Rekap Leger & Ranking Se-Kelas</span>
         </button>
 
+        <button
+          onClick={() => setActiveSubTab('piagam')}
+          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs font-bold transition-all ${
+            activeSubTab === 'piagam'
+              ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-xs font-black ring-1 ring-amber-400/40'
+              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-amber-50 dark:hover:bg-amber-950/20 hover:text-amber-600'
+          }`}
+        >
+          <Trophy className="h-4 w-4 text-amber-500" />
+          <span>Piagam Penghargaan</span>
+        </button>
+
         {/* Quick Phase & Titimangsa Global Synchronizer Triggers */}
         <div className="ml-auto flex items-center gap-2 flex-wrap">
           <button
@@ -288,6 +302,15 @@ export const RaportView: React.FC = () => {
         />
       ) : activeSubTab === 'rekap_leger' ? (
         <RekapLegerRaporTab
+          initialSubView="matrix"
+          onSelectStudentForReport={student => {
+            setSelectedStudentId(student.id);
+            setActiveSubTab('individual');
+          }}
+        />
+      ) : activeSubTab === 'piagam' ? (
+        <RekapLegerRaporTab
+          initialSubView="piagam"
           onSelectStudentForReport={student => {
             setSelectedStudentId(student.id);
             setActiveSubTab('individual');

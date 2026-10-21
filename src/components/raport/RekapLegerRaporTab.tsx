@@ -38,18 +38,21 @@ import {
 import { ModalEditRaporSiswa } from './ModalEditRaporSiswa';
 import { ModalDetailNilaiSiswa } from './ModalDetailNilaiSiswa';
 import { ModalCetakLeger } from './ModalCetakLeger';
+import { PiagamPenghargaanTab } from './PiagamPenghargaanTab';
 
 interface RekapLegerRaporTabProps {
   onSelectStudentForReport: (student: Student) => void;
   initialPeriod?: 'semester' | 'mid_semester';
+  initialSubView?: LegerSubView;
 }
 
-type LegerSubView = 'matrix' | 'leaderboard' | 'kenaikan';
+type LegerSubView = 'matrix' | 'leaderboard' | 'kenaikan' | 'piagam';
 type SortOption = 'rank' | 'absen' | 'nama' | 'total' | 'avg' | string; // string for subject ID
 
 export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
   onSelectStudentForReport,
-  initialPeriod = 'semester'
+  initialPeriod = 'semester',
+  initialSubView = 'matrix'
 }) => {
   const {
     schoolInfo,
@@ -82,7 +85,7 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
     : (schoolInfo.tanggalRapor || firstStudentReport?.tempatTanggalRapor || (isGenap ? `${schoolInfo.city || 'Kota Jakarta Selatan'}, 20 Juni 2027` : `${schoolInfo.city || 'Kota Jakarta Selatan'}, 19 Desember 2026`));
 
   // Sub-view Tab State
-  const [activeSubView, setActiveSubView] = useState<LegerSubView>('matrix');
+  const [activeSubView, setActiveSubView] = useState<LegerSubView>(initialSubView);
 
   // Search, Filter & Sort State
   const [searchQuery, setSearchQuery] = useState('');
@@ -631,45 +634,76 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
               <GraduationCap className="h-3.5 w-3.5" />
               <span>Rekap Kenaikan Kelas {isGenap ? '' : '(Smt 2)'}</span>
             </button>
+
+            {/* Navigasi Menu Baru: PIAGAM PENGHARGAAN */}
+            <button
+              type="button"
+              id="subtab-piagam-penghargaan"
+              onClick={() => setActiveSubView('piagam')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activeSubView === 'piagam'
+                  ? 'bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-white font-black shadow-md ring-2 ring-amber-400/50'
+                  : 'text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 hover:bg-amber-50/50 dark:hover:bg-amber-950/20'
+              }`}
+              title="Format Piagam Penghargaan Resmi untuk Siswa Berprestasi di Kelas"
+            >
+              <Award className={`h-4 w-4 ${activeSubView === 'piagam' ? 'text-yellow-200' : 'text-amber-500'}`} />
+              <span className="tracking-wide">PIAGAM PENGHARGAAN</span>
+              <span className={`text-[10px] font-black px-1.5 py-0.2 rounded-full ${activeSubView === 'piagam' ? 'bg-black/20 text-white' : 'bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-200'}`}>
+                Baru
+              </span>
+            </button>
           </div>
 
           {/* Quick Action Buttons */}
           <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleAutoCalculateRanking}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all"
-              title={isMid ? "Hitung ranking mid semester otomatis berdasarkan akumulasi nilai STS" : "Urutkan ranking 1-N otomatis berdasarkan total perolehan nilai rapor"}
-            >
-              <TrendingUp className="h-3.5 w-3.5" />
-              <span>{isMid ? 'Hitung Ranking Mid Otomatis' : 'Hitung Ulang Ranking Otomatis'}</span>
-            </button>
+            {activeSubView !== 'piagam' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={handleAutoCalculateRanking}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                  title={isMid ? "Hitung ranking mid semester otomatis berdasarkan akumulasi nilai STS" : "Urutkan ranking 1-N otomatis berdasarkan total perolehan nilai rapor"}
+                >
+                  <TrendingUp className="h-3.5 w-3.5" />
+                  <span>{isMid ? 'Hitung Ranking Mid Otomatis' : 'Hitung Ulang Ranking Otomatis'}</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={handleExportCSV}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all"
-              title="Unduh leger nilai lengkap format Excel/CSV"
-            >
-              <Download className="h-3.5 w-3.5" />
-              <span>Export CSV / Excel</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={handleExportCSV}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 active:scale-95 text-white rounded-xl text-xs font-bold shadow-xs transition-all cursor-pointer"
+                  title="Unduh leger nilai lengkap format Excel/CSV"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  <span>Export CSV / Excel</span>
+                </button>
 
-            <button
-              type="button"
-              onClick={() => handlePrint(activeSubView, activePeriod)}
-              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 text-white ${
-                isMid ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-800 hover:bg-slate-700'
-              }`}
-              title={isMid ? "Cetak leger nilai Asesmen Sumatif Tengah Semester (ASTS)" : "Cetak format cetak leger resmi Kurikulum Merdeka Pembelajaran Mendalam (KMPM)"}
-            >
-              <Printer className="h-3.5 w-3.5" />
-              <span>{isMid ? 'Cetak Leger Mid (ASTS)' : 'Cetak Leger'}</span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => handlePrint(activeSubView, activePeriod)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shadow-xs transition-all active:scale-95 text-white cursor-pointer ${
+                    isMid ? 'bg-amber-600 hover:bg-amber-700' : 'bg-slate-800 hover:bg-slate-700'
+                  }`}
+                  title={isMid ? "Cetak leger nilai Asesmen Sumatif Tengah Semester (ASTS)" : "Cetak format cetak leger resmi Kurikulum Merdeka Pembelajaran Mendalam (KMPM)"}
+                >
+                  <Printer className="h-3.5 w-3.5" />
+                  <span>{isMid ? 'Cetak Leger Mid (ASTS)' : 'Cetak Leger'}</span>
+                </button>
+              </>
+            ) : (
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-bold text-amber-800 dark:text-amber-200 bg-amber-50 dark:bg-amber-950/60 px-3 py-1.5 rounded-xl border border-amber-300 dark:border-amber-800 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                  Mode Piagam Prestasi Siswa Aktif
+                </span>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Filter, Search & Sort Control Bar */}
+        {/* Filter, Search & Sort Control Bar (Tampil di Matrix, Leaderboard, & Kenaikan) */}
+        {activeSubView !== 'piagam' && (
         <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs">
           <div className="flex flex-wrap items-center gap-2.5 flex-1">
             {/* Search */}
@@ -758,6 +792,7 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
             </button>
           </div>
         </div>
+        )}
       </div>
 
       {/* 4. SUB-VIEW 1: MATRIKS LEGER NILAI MAPEL LENGKAP */}
@@ -1630,59 +1665,69 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
         </div>
       )}
 
-      {/* 7. Official Signature Footer Block (Muncul di Pratinjau Layar & Cetak) */}
-      <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs print:shadow-none print:border-t print:border-black print:rounded-none print:p-0 print:bg-transparent">
-        <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800 print:hidden">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-              <span>Tempat & Tanggal Leger: Sama dengan Rapor</span>
-            </span>
-            <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
-              ({activeLegerDate})
-            </span>
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setPrintLegerPeriod(activePeriod);
-              setIsPrintLegerOpen(true);
-            }}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800 transition-colors"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            <span>Pratinjau & Cetak Leger Resmi</span>
-          </button>
-        </div>
-
-        <div className="grid grid-cols-2 text-center text-xs text-black dark:text-slate-200 print:text-black">
-          <div>
-            <p className="text-slate-600 dark:text-slate-400 print:text-black">Mengetahui,</p>
-            <p className="font-bold text-slate-900 dark:text-white print:text-black">Kepala {schoolInfo.schoolName}</p>
-            <div className="h-16 sm:h-20" />
-            <p className="font-bold uppercase underline text-slate-900 dark:text-white print:text-black">
-              {schoolInfo.headmasterName || 'NAMA KEPALA SEKOLAH'}
-            </p>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 print:text-black font-mono">
-              NIP. {schoolInfo.headmasterNip || '-'}
-            </p>
+      {/* 7. Official Signature Footer Block (Muncul di Pratinjau Layar & Cetak untuk Leger) */}
+      {activeSubView !== 'piagam' && (
+        <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-xs print:shadow-none print:border-t print:border-black print:rounded-none print:p-0 print:bg-transparent">
+          <div className="flex items-center justify-between pb-4 mb-4 border-b border-slate-100 dark:border-slate-800 print:hidden">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                <span>Tempat & Tanggal Leger: Sama dengan Rapor</span>
+              </span>
+              <span className="text-xs text-slate-700 dark:text-slate-300 font-semibold">
+                ({activeLegerDate})
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                setPrintLegerPeriod(activePeriod);
+                setIsPrintLegerOpen(true);
+              }}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-blue-50 dark:bg-blue-950/60 hover:bg-blue-100 text-blue-700 dark:text-blue-300 text-xs font-bold border border-blue-200 dark:border-blue-800 transition-colors"
+            >
+              <Printer className="h-3.5 w-3.5" />
+              <span>Pratinjau & Cetak Leger Resmi</span>
+            </button>
           </div>
 
-          <div>
-            <p className="font-medium text-slate-800 dark:text-slate-200 print:text-black">
-              {activeLegerDate}
-            </p>
-            <p className="font-bold text-slate-900 dark:text-white print:text-black">Guru Kelas / Wali Kelas {schoolInfo.className}</p>
-            <div className="h-16 sm:h-20" />
-            <p className="font-bold uppercase underline text-slate-900 dark:text-white print:text-black">
-              {schoolInfo.homeroomTeacherName || 'NAMA GURU WALI KELAS'}
-            </p>
-            <p className="text-[11px] text-slate-600 dark:text-slate-400 print:text-black font-mono">
-              NIP. {schoolInfo.homeroomTeacherNip || '-'}
-            </p>
+          <div className="grid grid-cols-2 text-center text-xs text-black dark:text-slate-200 print:text-black">
+            <div>
+              <p className="text-slate-600 dark:text-slate-400 print:text-black">Mengetahui,</p>
+              <p className="font-bold text-slate-900 dark:text-white print:text-black">Kepala {schoolInfo.schoolName}</p>
+              <div className="h-16 sm:h-20" />
+              <p className="font-bold uppercase underline text-slate-900 dark:text-white print:text-black">
+                {schoolInfo.headmasterName || 'NAMA KEPALA SEKOLAH'}
+              </p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 print:text-black font-mono">
+                NIP. {schoolInfo.headmasterNip || '-'}
+              </p>
+            </div>
+
+            <div>
+              <p className="font-medium text-slate-800 dark:text-slate-200 print:text-black">
+                {activeLegerDate}
+              </p>
+              <p className="font-bold text-slate-900 dark:text-white print:text-black">Guru Kelas / Wali Kelas {schoolInfo.className}</p>
+              <div className="h-16 sm:h-20" />
+              <p className="font-bold uppercase underline text-slate-900 dark:text-white print:text-black">
+                {schoolInfo.homeroomTeacherName || 'NAMA GURU WALI KELAS'}
+              </p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-400 print:text-black font-mono">
+                NIP. {schoolInfo.homeroomTeacherNip || '-'}
+              </p>
+            </div>
           </div>
         </div>
-      </div>
+      )}
+
+      {/* 8. SUB-VIEW 4: PIAGAM PENGHARGAAN SISWA BERPRESTASI KELAS (KMPM) */}
+      {activeSubView === 'piagam' && (
+        <PiagamPenghargaanTab
+          initialStudentId={students[0]?.id}
+          onSelectStudentId={(id) => {}}
+        />
+      )}
 
       {/* 8. Bulk Kenaikan Modal */}
       {isBulkModalOpen && (
