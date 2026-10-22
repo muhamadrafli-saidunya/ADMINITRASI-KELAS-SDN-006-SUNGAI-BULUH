@@ -9,15 +9,19 @@ interface HeaderKopSekolahProps {
   className?: string;
   equalizeLogos?: boolean;
   logoSize?: number;
+  schoolNameColor?: string;
+  borderColor?: string;
 }
 
 export const HeaderKopSekolah: React.FC<HeaderKopSekolahProps> = ({
   documentTitle,
   subTitle,
   hideBorder = false,
-  className = '',
+  className,
   equalizeLogos = true,
-  logoSize
+  logoSize,
+  schoolNameColor,
+  borderColor
 }) => {
   const { schoolInfo } = useApp();
 
@@ -49,20 +53,23 @@ export const HeaderKopSekolah: React.FC<HeaderKopSekolahProps> = ({
     const style = schoolInfo.kopBorderStyle || 'double';
     switch (style) {
       case 'double':
-        return 'border-b-4 border-double border-slate-900 dark:border-slate-300 pb-3.5';
+        return `border-b-4 border-double ${!borderColor ? 'border-slate-900 dark:border-slate-300' : ''} pb-3.5`;
       case 'solid':
-        return 'border-b-2 border-slate-900 dark:border-slate-300 pb-3.5';
+        return `border-b-2 ${!borderColor ? 'border-slate-900 dark:border-slate-300' : ''} pb-3.5`;
       case 'dashed':
-        return 'border-b-2 border-dashed border-slate-700 dark:border-slate-400 pb-3.5';
+        return `border-b-2 border-dashed ${!borderColor ? 'border-slate-700 dark:border-slate-400' : ''} pb-3.5`;
       case 'none':
         return 'pb-2';
       default:
-        return 'border-b-4 border-double border-slate-900 dark:border-slate-300 pb-3.5';
+        return `border-b-4 border-double ${!borderColor ? 'border-slate-900 dark:border-slate-300' : ''} pb-3.5`;
     }
   };
 
   return (
-    <div className={`mb-6 print:mb-2 pb-2 print:pb-1 text-center text-black print:text-black ${getBorderClass()} ${className}`}>
+    <div
+      className={`text-center text-black print:text-black ${getBorderClass()} ${className !== undefined ? className : 'mb-6 print:mb-2 pb-2 print:pb-1'}`}
+      style={borderColor && !hideBorder ? { borderColor } : undefined}
+    >
       <div className="flex items-center justify-between gap-3 sm:gap-6">
         {/* Logo Kiri */}
         <div 
@@ -98,7 +105,12 @@ export const HeaderKopSekolah: React.FC<HeaderKopSekolahProps> = ({
               {headerLine2}
             </h3>
           )}
-          <h1 className="text-base sm:text-xl md:text-2xl font-black uppercase tracking-tight text-blue-900 print:text-black leading-tight my-0.5">
+          <h1
+            className={`text-base sm:text-xl md:text-2xl font-black uppercase tracking-tight leading-tight my-0.5 ${
+              !schoolNameColor ? 'text-blue-900 print:text-black' : 'print:text-black'
+            }`}
+            style={schoolNameColor ? { color: schoolNameColor } : undefined}
+          >
             {schoolInfo.schoolName}
           </h1>
           <p className="text-[9.5px] sm:text-xs text-slate-700 print:text-black leading-tight">

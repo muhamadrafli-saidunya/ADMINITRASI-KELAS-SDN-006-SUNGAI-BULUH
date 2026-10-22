@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Student } from '../../types';
 import { SchoolLogoRenderer } from '../common/SchoolLogoRenderer';
+import { HeaderKopSekolah } from '../common/HeaderKopSekolah';
 import {
   PiagamBorderStyle,
   PiagamColorTheme,
@@ -884,48 +885,15 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
       )}
 
       {/* ========================================================================= */}
-      {/* 1. KOP RESMI PIAGAM PENGHARGAAN (ATAS)                                    */}
+      {/* 1. KOP RESMI PIAGAM PENGHARGAAN (SESUAI LEMBAR RAPOR SISWA)               */}
       {/* ========================================================================= */}
-      <div className="relative z-10 w-full flex items-center justify-between border-b-2 pb-3" style={{ borderColor: `${themeConfig.gold}80` }}>
-        {/* Logo Kiri (Tut Wuri Handayani) */}
-        <div className="w-20 flex justify-center">
-          <SchoolLogoRenderer
-            preset={schoolInfo.logoLeftPreset || 'tutwuri'}
-            customUrl={schoolInfo.logoLeft}
-            width={72}
-            alt="Logo Kemendikbud"
-          />
-        </div>
-
-        {/* Identitas Instansi & Sekolah */}
-        <div className="flex-1 text-center px-4">
-          <h4 className="text-[11px] sm:text-xs font-black tracking-widest uppercase text-slate-700">
-            {schoolInfo.province ? `PEMERINTAH ${schoolInfo.province.toUpperCase()}` : 'PEMERINTAH DAERAH'}
-          </h4>
-          <h3 className="text-xs sm:text-sm font-black tracking-wider uppercase text-slate-800">
-            {schoolInfo.city ? `DINAS PENDIDIKAN DAN KEBUDAYAAN ${schoolInfo.city.toUpperCase()}` : 'DINAS PENDIDIKAN'}
-          </h3>
-          <h2
-            className="text-base sm:text-xl font-black tracking-wide uppercase mt-0.5"
-            style={{ color: themeConfig.primary }}
-          >
-            {schoolInfo.schoolName || 'SEKOLAH DASAR'}
-          </h2>
-          <p className="text-[10px] text-slate-600 mt-0.5 max-w-xl mx-auto truncate font-medium">
-            {schoolInfo.address} {schoolInfo.subdistrict ? `• Kec. ${schoolInfo.subdistrict}` : ''} {schoolInfo.city ? `• ${schoolInfo.city}` : ''} {schoolInfo.postalCode ? `Pos ${schoolInfo.postalCode}` : ''}
-          </p>
-        </div>
-
-        {/* Logo Kanan (Logo Sekolah / Garuda) */}
-        <div className="w-20 flex justify-center">
-          <SchoolLogoRenderer
-            preset={schoolInfo.logoRightPreset || 'kemdikbud'}
-            customUrl={schoolInfo.logoRight}
-            width={72}
-            alt="Logo Sekolah"
-          />
-        </div>
-      </div>
+      <HeaderKopSekolah
+        equalizeLogos={true}
+        logoSize={64}
+        borderColor={themeConfig.gold}
+        schoolNameColor={themeConfig.primary}
+        className="relative z-10 w-full mb-2 sm:mb-2.5 print:mb-2 pb-2 print:pb-1"
+      />
 
       {/* ========================================================================= */}
       {/* 2. JUDUL PIAGAM PENGHARGAAN & NOMOR RESMI                                 */}
