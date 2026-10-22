@@ -105,6 +105,7 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
   const [bulkTargetKelas, setBulkTargetKelas] = useState(
     schoolInfo.className.includes('4') ? 'V (Lima)' : schoolInfo.className.includes('5') ? 'VI (Enam)' : 'Kelas Lanjutan'
   );
+  const [selectedPiagamStudentId, setSelectedPiagamStudentId] = useState<string>('');
 
   // Computed per-student data cache
   const studentDataList = useMemo(() => {
@@ -1212,13 +1213,27 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
                   </div>
 
                   {topThreeStudents.second && (
-                    <button
-                      type="button"
-                      onClick={() => setDetailStudent(topThreeStudents.second!.student)}
-                      className="mt-3 w-full py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors"
-                    >
-                      Lihat Rincian
-                    </button>
+                    <div className="mt-3 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPiagamStudentId(topThreeStudents.second!.student.id);
+                          setActiveSubView('piagam');
+                        }}
+                        className="flex-1 py-1.5 rounded-xl bg-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <Award className="h-3.5 w-3.5 text-slate-300" />
+                        <span>Piagam Juara 2</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailStudent(topThreeStudents.second!.student)}
+                        className="py-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                        title="Lihat Rincian Nilai"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1264,13 +1279,27 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
                   </div>
 
                   {topThreeStudents.first && (
-                    <button
-                      type="button"
-                      onClick={() => setDetailStudent(topThreeStudents.first!.student)}
-                      className="mt-3 w-full py-2 rounded-xl bg-amber-500 hover:bg-amber-600 active:scale-95 text-white text-xs font-bold shadow-md shadow-amber-500/20 transition-all"
-                    >
-                      Buka Rincian Juara 1
-                    </button>
+                    <div className="mt-3 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPiagamStudentId(topThreeStudents.first!.student.id);
+                          setActiveSubView('piagam');
+                        }}
+                        className="flex-1 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 active:scale-95 text-white text-xs font-black shadow-md shadow-amber-500/20 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Award className="h-4 w-4 text-yellow-200" />
+                        <span>Cetak Piagam Juara 1</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailStudent(topThreeStudents.first!.student)}
+                        className="py-2 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                        title="Buka Rincian Nilai"
+                      >
+                        <Eye className="h-4 w-4" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1307,13 +1336,27 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
                   </div>
 
                   {topThreeStudents.third && (
-                    <button
-                      type="button"
-                      onClick={() => setDetailStudent(topThreeStudents.third!.student)}
-                      className="mt-3 w-full py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors"
-                    >
-                      Lihat Rincian
-                    </button>
+                    <div className="mt-3 flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedPiagamStudentId(topThreeStudents.third!.student.id);
+                          setActiveSubView('piagam');
+                        }}
+                        className="flex-1 py-1.5 rounded-xl bg-amber-800 hover:bg-amber-900 text-white text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-xs"
+                      >
+                        <Award className="h-3.5 w-3.5 text-amber-200" />
+                        <span>Piagam Juara 3</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDetailStudent(topThreeStudents.third!.student)}
+                        className="py-1.5 px-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition-colors cursor-pointer"
+                        title="Lihat Rincian Nilai"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1494,13 +1537,28 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
 
                         {/* Aksi */}
                         <td className="py-2.5 px-3 text-center">
-                          <button
-                            type="button"
-                            onClick={() => setDetailStudent(s)}
-                            className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900 dark:text-blue-300 text-xs font-bold transition-colors"
-                          >
-                            Rincian Nilai
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedPiagamStudentId(s.id);
+                                setActiveSubView('piagam');
+                              }}
+                              className="px-2 py-1 rounded-lg bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:hover:bg-amber-900 dark:text-amber-200 text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
+                              title="Buka Piagam Siswa"
+                            >
+                              <Award className="h-3 w-3 text-amber-600" />
+                              <span>Piagam</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setDetailStudent(s)}
+                              className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950 dark:hover:bg-blue-900 dark:text-blue-300 text-xs font-bold transition-colors cursor-pointer"
+                              title="Lihat Rincian Nilai"
+                            >
+                              Rincian
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -1724,8 +1782,9 @@ export const RekapLegerRaporTab: React.FC<RekapLegerRaporTabProps> = ({
       {/* 8. SUB-VIEW 4: PIAGAM PENGHARGAAN SISWA BERPRESTASI KELAS (KMPM) */}
       {activeSubView === 'piagam' && (
         <PiagamPenghargaanTab
-          initialStudentId={students[0]?.id}
-          onSelectStudentId={(id) => {}}
+          initialStudentId={selectedPiagamStudentId || students[0]?.id}
+          initialPeriod={activePeriod}
+          onSelectStudentId={(id) => setSelectedPiagamStudentId(id)}
         />
       )}
 

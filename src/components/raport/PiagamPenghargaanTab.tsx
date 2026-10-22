@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Student } from '../../types';
 import { SchoolLogoRenderer } from '../common/SchoolLogoRenderer';
@@ -28,7 +28,9 @@ import {
   Check,
   Palette,
   ShieldCheck,
-  Layers
+  Layers,
+  FileSpreadsheet,
+  Award
 } from 'lucide-react';
 
 export type { PiagamBorderStyle, PiagamColorTheme, PiagamSealType };
@@ -43,11 +45,98 @@ export interface PiagamCustomData {
 
 interface PiagamPenghargaanTabProps {
   initialStudentId?: string;
+  initialPeriod?: 'semester' | 'mid_semester';
   onSelectStudentId?: (id: string) => void;
 }
 
+// Konversi angka peringkat ke angka Romawi
+export const toRomanRank = (num: number): string => {
+  const romans: Record<number, string> = {
+    1: 'I', 2: 'II', 3: 'III', 4: 'IV', 5: 'V',
+    6: 'VI', 7: 'VII', 8: 'VIII', 9: 'IX', 10: 'X',
+    11: 'XI', 12: 'XII', 13: 'XIII', 14: 'XIV', 15: 'XV',
+    16: 'XVI', 17: 'XVII', 18: 'XVIII', 19: 'XIX', 20: 'XX',
+    21: 'XXI', 22: 'XXII', 23: 'XXIII', 24: 'XXIV', 25: 'XXV',
+    26: 'XXVI', 27: 'XXVII', 28: 'XXVIII', 29: 'XXIX', 30: 'XXX'
+  };
+  return romans[num] || String(num);
+};
+
+// Format otomatis tulisan juara & predikat berdasarkan urutan ranking rekap leger se-kelas
+export const formatGelarJuara = (
+  rank: number,
+  className: string
+): { title: string; badge: string; subtitle: string; icon: 'crown' | 'silver_medal' | 'bronze_medal' | 'harapan' | 'top10' | 'star' } => {
+  const cleanClass = className ? `KELAS ${className.toUpperCase()}` : 'KELAS';
+  
+  if (rank === 1) {
+    return {
+      title: `JUARA I (PERTAMA) ${cleanClass}`,
+      badge: '🥇 JUARA 1 UMUM',
+      subtitle: 'PERINGKAT I TERBAIK SE-KELAS',
+      icon: 'crown'
+    };
+  }
+  if (rank === 2) {
+    return {
+      title: `JUARA II (KEDUA) ${cleanClass}`,
+      badge: '🥈 JUARA 2',
+      subtitle: 'PERINGKAT II SE-KELAS',
+      icon: 'silver_medal'
+    };
+  }
+  if (rank === 3) {
+    return {
+      title: `JUARA III (KETIGA) ${cleanClass}`,
+      badge: '🥉 JUARA 3',
+      subtitle: 'PERINGKAT III SE-KELAS',
+      icon: 'bronze_medal'
+    };
+  }
+  if (rank === 4) {
+    return {
+      title: `JUARA HARAPAN I (PERINGKAT 4) ${cleanClass}`,
+      badge: '🎖️ HARAPAN 1',
+      subtitle: 'EMPAT BESAR SE-KELAS',
+      icon: 'harapan'
+    };
+  }
+  if (rank === 5) {
+    return {
+      title: `JUARA HARAPAN II (PERINGKAT 5) ${cleanClass}`,
+      badge: '🎖️ HARAPAN 2',
+      subtitle: 'LIMA BESAR SE-KELAS',
+      icon: 'harapan'
+    };
+  }
+  if (rank === 6) {
+    return {
+      title: `JUARA HARAPAN III (PERINGKAT 6) ${cleanClass}`,
+      badge: '🎖️ HARAPAN 3',
+      subtitle: 'ENAM BESAR SE-KELAS',
+      icon: 'harapan'
+    };
+  }
+  if (rank <= 10) {
+    const rom = toRomanRank(rank);
+    return {
+      title: `PERINGKAT ${rom} (SEPULUH BESAR) ${cleanClass}`,
+      badge: `⭐ TOP ${rank}`,
+      subtitle: `SEPULUH BESAR SE-KELAS`,
+      icon: 'top10'
+    };
+  }
+  return {
+    title: `PERINGKAT KE-${rank} (PRESTASI AKADEMIK) ${cleanClass}`,
+    badge: `🏅 PERINGKAT ${rank}`,
+    subtitle: `PRESTASI AKADEMIK SE-KELAS`,
+    icon: 'star'
+  };
+};
+
 export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
   initialStudentId,
+  initialPeriod = 'semester',
   onSelectStudentId
 }) => {
   const {
@@ -55,43 +144,98 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     students,
     subjects,
     getAllGradesForStudent,
-    getStudentReport,
-    calculateStudentRankings
+    getAllMidSemesterGradesForStudent,
+    getStudentReport
   } = useApp();
 
-  // Rankings map from Leger
-  const rankings = useMemo(() => calculateStudentRankings(), [students, subjects]);
+  // Periode Leger: Akhir Semester atau Tengah Semester (ASTS)
+  const [activePeriod, setActivePeriod] = useState<'semester' | 'mid_semester'>(initialPeriod);
+  const isMid = activePeriod === 'mid_semester';
+
+  // Sinkronisasi data nilai per siswa persis dengan Rekap Leger & Rangking se-kelas
+  const studentDataList = useMemo(() => {
+    return students.map(student => {
+      const report = getStudentReport(student.id);
+      const studentGrades = isMid
+        ? getAllMidSemesterGradesForStudent(student.id)
+        : getAllGradesForStudent(student.id);
+
+      let totalScore = 0;
+      studentGrades.forEach(g => {
+        const score = isMid
+          ? ('nilaiAkhirMid' in g ? (g as any).nilaiAkhirMid : ('sumatifSts' in g ? (g as any).sumatifSts : 0))
+          : ('nilaiAkhir' in g ? (g as any).nilaiAkhir : 0);
+        totalScore += score;
+      });
+
+      const avgScore = studentGrades.length > 0 ? +(totalScore / studentGrades.length).toFixed(1) : 0;
+
+      // Cek apakah ada peringkat tersimpan di rapor/leger
+      const savedRankRaw = isMid ? report.rankingMid : report.ranking;
+      const savedNumericRank = savedRankRaw && !isNaN(Number(savedRankRaw)) && Number(savedRankRaw) > 0
+        ? Number(savedRankRaw)
+        : null;
+
+      return {
+        student,
+        report,
+        totalScore,
+        avgScore,
+        savedNumericRank
+      };
+    });
+  }, [students, isMid, getStudentReport, getAllGradesForStudent, getAllMidSemesterGradesForStudent]);
+
+  // Urutan definitif seluruh siswa se-kelas (Juara 1 s/d N) mengikuti matriks rekap leger
+  const rankedStudents = useMemo(() => {
+    const list = [...studentDataList];
+    list.sort((a, b) => {
+      const rankA = a.savedNumericRank !== null ? a.savedNumericRank : 9999;
+      const rankB = b.savedNumericRank !== null ? b.savedNumericRank : 9999;
+      if (rankA !== rankB) {
+        return rankA - rankB;
+      }
+      return b.totalScore - a.totalScore || b.avgScore - a.avgScore;
+    });
+
+    return list.map((item, index) => {
+      const rank = item.savedNumericRank !== null ? item.savedNumericRank : index + 1;
+      return {
+        ...item,
+        rank
+      };
+    });
+  }, [studentDataList]);
+
+  // Lookup cepat: student.id -> nomor peringkat resmi leger
   const rankingsMap = useMemo(() => {
     const map = new Map<string, number>();
-    rankings.forEach(r => map.set(r.studentId, r.rank));
+    rankedStudents.forEach(item => map.set(item.student.id, item.rank));
     return map;
-  }, [rankings]);
+  }, [rankedStudents]);
 
-  // Total scores and average map
+  // Lookup cepat: student.id -> total skor & rerata nilai
   const studentScoresMap = useMemo(() => {
     const map = new Map<string, { total: number; avg: number }>();
-    students.forEach(s => {
-      const gList = getAllGradesForStudent(s.id);
-      const total = gList.reduce((acc, g) => acc + (g.nilaiAkhir || 0), 0);
-      const avg = gList.length > 0 ? +(total / gList.length).toFixed(1) : 0;
-      map.set(s.id, { total, avg });
-    });
+    rankedStudents.forEach(item => map.set(item.student.id, { total: item.totalScore, avg: item.avgScore }));
     return map;
-  }, [students, getAllGradesForStudent]);
+  }, [rankedStudents]);
 
-  // Sort students by rank for easy discovery
+  // Daftar siswa yang telah diurutkan berdasarkan urutan juara / ranking resmi leger
   const sortedStudentsByRank = useMemo(() => {
-    return [...students].sort((a, b) => {
-      const rankA = rankingsMap.get(a.id) ?? 999;
-      const rankB = rankingsMap.get(b.id) ?? 999;
-      return rankA - rankB;
-    });
-  }, [students, rankingsMap]);
+    return rankedStudents.map(item => item.student);
+  }, [rankedStudents]);
 
-  // Selected Student
+  // Siswa terpilih (secara otomatis memilih Juara 1 dari rekap leger jika belum ada yang dipilih)
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
     initialStudentId || sortedStudentsByRank[0]?.id || students[0]?.id || ''
   );
+
+  useEffect(() => {
+    if (initialStudentId) {
+      setSelectedStudentId(initialStudentId);
+    }
+  }, [initialStudentId]);
 
   // Frame & Appearance State
   const [borderStyle, setBorderStyle] = useState<PiagamBorderStyle>('royal_baroque');
@@ -115,44 +259,44 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
 
   const activeStudentRank = rankingsMap.get(selectedStudent?.id || '') ?? 1;
   const activeStudentScore = studentScoresMap.get(selectedStudent?.id || '') ?? { total: 0, avg: 0 };
+  
+  // Gelar Juara otomatis sesuai ranking leger
+  const gelarInfo = useMemo(() => {
+    return formatGelarJuara(activeStudentRank, schoolInfo.className || '');
+  }, [activeStudentRank, schoolInfo.className]);
 
   // Generate default Piagam Number
   const defaultNomorPiagam = useMemo(() => {
     const cleanSchool = (schoolInfo.schoolName || 'SD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
     const rankStr = String(activeStudentRank).padStart(2, '0');
-    const smtRomawi = schoolInfo.semester?.includes('1') ? 'XII' : 'VI';
-    const year = schoolInfo.academicYear?.split('/')[0] || '2025';
-    return `421.2/${rankStr}/${cleanSchool}/PP/${smtRomawi}/${year}`;
-  }, [activeStudentRank, schoolInfo.schoolName, schoolInfo.semester, schoolInfo.academicYear]);
+    const smtRomawi = schoolInfo.semester?.includes('1') ? 'I' : 'II';
+    const year = schoolInfo.academicYear?.split('/')[0] || new Date().getFullYear().toString();
+    const prefix = isMid ? 'PP-ASTS' : 'PP-KMPM';
+    return `421.2/${rankStr}/${cleanSchool}/${prefix}/${smtRomawi}/${year}`;
+  }, [activeStudentRank, schoolInfo.schoolName, schoolInfo.semester, schoolInfo.academicYear, isMid]);
 
-  // Generate default Achievement category
+  // Generate default Achievement category strictly from Leger ranking sequence
   const defaultKategoriPrestasi = useMemo(() => {
-    if (activeStudentRank === 1) {
-      return `JUARA I (PERTAMA) KELAS ${schoolInfo.className.toUpperCase()}`;
-    } else if (activeStudentRank === 2) {
-      return `JUARA II (KEDUA) KELAS ${schoolInfo.className.toUpperCase()}`;
-    } else if (activeStudentRank === 3) {
-      return `JUARA III (KETIGA) KELAS ${schoolInfo.className.toUpperCase()}`;
-    } else if (activeStudentRank <= 10) {
-      return `PERINGKAT ${activeStudentRank} (SEPULUH BESAR) KELAS ${schoolInfo.className.toUpperCase()}`;
-    }
-    return `PRESTASI AKADEMIK & KARAKTER TERPUJI KELAS ${schoolInfo.className.toUpperCase()}`;
-  }, [activeStudentRank, schoolInfo.className]);
+    return gelarInfo.title;
+  }, [gelarInfo]);
 
   // Default tanggal piagam (disamakan persis dengan tanggal rapor siswa)
   const defaultTanggalPiagam = useMemo(() => {
+    if (isMid && schoolInfo.tanggalRaporMid) return schoolInfo.tanggalRaporMid;
     if (schoolInfo.tanggalRapor) return schoolInfo.tanggalRapor;
     const rep = selectedStudent ? getStudentReport(selectedStudent.id) : null;
+    if (isMid && rep?.tempatTanggalRaporMid) return rep.tempatTanggalRaporMid;
     if (rep?.tempatTanggalRapor) return rep.tempatTanggalRapor;
     const isGenap = schoolInfo.semester?.includes('2');
     return isGenap
       ? `${schoolInfo.city || 'Kota Jakarta Selatan'}, 20 Juni 2027`
       : `${schoolInfo.city || 'Kota Jakarta Selatan'}, 19 Desember 2026`;
-  }, [schoolInfo.tanggalRapor, schoolInfo.city, schoolInfo.semester, selectedStudent, getStudentReport]);
+  }, [isMid, schoolInfo.tanggalRaporMid, schoolInfo.tanggalRapor, schoolInfo.city, schoolInfo.semester, selectedStudent, getStudentReport]);
 
   const defaultCatatanApresiasi = useMemo(() => {
-    return `Atas dedikasi, kedisiplinan, serta prestasi akademik yang sangat membanggakan dengan perolehan Rata-Rata Nilai ${activeStudentScore.avg} (Total Skor: ${activeStudentScore.total}) pada Semester ${schoolInfo.semester} Tahun Pelajaran ${schoolInfo.academicYear}.`;
-  }, [activeStudentScore, schoolInfo.semester, schoolInfo.academicYear]);
+    const periodLabel = isMid ? 'Asesmen Sumatif Tengah Semester (ASTS)' : `Semester ${schoolInfo.semester}`;
+    return `Atas dedikasi, kedisiplinan, serta prestasi akademik luar biasa sebagai ${gelarInfo.subtitle} dengan perolehan Rata-Rata Nilai ${activeStudentScore.avg} (Total Skor: ${activeStudentScore.total}) pada ${periodLabel} Tahun Pelajaran ${schoolInfo.academicYear}.`;
+  }, [gelarInfo, activeStudentScore, isMid, schoolInfo.semester, schoolInfo.academicYear]);
 
   // Current active student custom or default data
   const currentCustom = customDataMap[selectedStudent?.id || ''] || {};
@@ -326,8 +470,38 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
           </div>
         </div>
 
-        {/* Baris Navigasi Siswa & Filter Cepat */}
-        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 pt-1">
+        {/* Baris Sumber Periode Leger & Filter Cepat */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 pt-1">
+          {/* Sumber Rekap Leger: Akhir Semester vs Tengah Semester */}
+          <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
+            <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 px-2 flex items-center gap-1">
+              <FileSpreadsheet className="h-3.5 w-3.5 text-amber-600" />
+              Sumber Leger:
+            </span>
+            <button
+              type="button"
+              onClick={() => setActivePeriod('semester')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activePeriod === 'semester'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
+              }`}
+            >
+              Leger Akhir Semester
+            </button>
+            <button
+              type="button"
+              onClick={() => setActivePeriod('mid_semester')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                activePeriod === 'mid_semester'
+                  ? 'bg-amber-600 text-white shadow-xs'
+                  : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
+              }`}
+            >
+              Leger Tengah Semester (ASTS)
+            </button>
+          </div>
+
           {/* Filter Cepat Juara */}
           <div className="flex items-center gap-1.5 p-1 bg-slate-100 dark:bg-slate-800 rounded-xl">
             <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 px-2 flex items-center gap-1">
@@ -337,7 +511,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('top3')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 filterMode === 'top3'
                   ? 'bg-amber-500 text-white shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
@@ -348,7 +522,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('top5')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 filterMode === 'top5'
                   ? 'bg-amber-500 text-white shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
@@ -359,7 +533,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('top10')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 filterMode === 'top10'
                   ? 'bg-amber-500 text-white shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
@@ -370,7 +544,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
             <button
               type="button"
               onClick={() => setFilterMode('all')}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              className={`px-2.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                 filterMode === 'all'
                   ? 'bg-amber-500 text-white shadow-xs'
                   : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
@@ -379,49 +553,49 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
               Semua ({students.length})
             </button>
           </div>
+        </div>
 
-          {/* Student Selector Dropdown with Prev/Next buttons */}
-          <div className="flex items-center gap-2 flex-1 max-w-md">
-            <button
-              type="button"
-              onClick={handlePrevStudent}
-              disabled={currentRankIndex <= 0}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Siswa Sebelumnya"
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </button>
+        {/* Student Selector Dropdown with Prev/Next buttons */}
+        <div className="flex items-center gap-2 pt-1">
+          <button
+            type="button"
+            onClick={handlePrevStudent}
+            disabled={currentRankIndex <= 0}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            title="Siswa Peringkat Sebelumnya"
+          >
+            <ChevronLeft className="h-4 w-4" />
+          </button>
 
-            <select
-              value={selectedStudentId}
-              onChange={e => {
-                setSelectedStudentId(e.target.value);
-                if (onSelectStudentId) onSelectStudentId(e.target.value);
-              }}
-              className="flex-1 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-2 text-xs font-bold text-slate-900 dark:text-white shadow-xs focus:border-amber-500 focus:ring-1 focus:ring-amber-500"
-            >
-              {displayedStudents.map((s) => {
-                const r = rankingsMap.get(s.id) ?? '-';
-                const sc = studentScoresMap.get(s.id) ?? { avg: 0, total: 0 };
-                const medalIcon = r === 1 ? '🥇' : r === 2 ? '🥈' : r === 3 ? '🥉' : `#${r}`;
-                return (
-                  <option key={s.id} value={s.id}>
-                    {medalIcon} Peringkat {r}: {s.nama} (Rata-rata: {sc.avg} • Nilai: {sc.total})
-                  </option>
-                );
-              })}
-            </select>
+          <select
+            value={selectedStudentId}
+            onChange={e => {
+              setSelectedStudentId(e.target.value);
+              if (onSelectStudentId) onSelectStudentId(e.target.value);
+            }}
+            className="flex-1 rounded-xl border-2 border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-800 px-3.5 py-2.5 text-xs font-black text-slate-900 dark:text-white shadow-xs focus:border-amber-500 focus:ring-2 focus:ring-amber-500 outline-none"
+          >
+            {displayedStudents.map((s) => {
+              const r = rankingsMap.get(s.id) ?? 1;
+              const sc = studentScoresMap.get(s.id) ?? { avg: 0, total: 0 };
+              const gInfo = formatGelarJuara(r, schoolInfo.className || '');
+              return (
+                <option key={s.id} value={s.id}>
+                  {gInfo.badge} • {s.nama} (Peringkat #{r} • Rata-rata: {sc.avg} • Total: {sc.total})
+                </option>
+              );
+            })}
+          </select>
 
-            <button
-              type="button"
-              onClick={handleNextStudent}
-              disabled={currentRankIndex >= sortedStudentsByRank.length - 1}
-              className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Siswa Selanjutnya"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={handleNextStudent}
+            disabled={currentRankIndex >= sortedStudentsByRank.length - 1}
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors cursor-pointer"
+            title="Siswa Peringkat Selanjutnya"
+          >
+            <ChevronRight className="h-4 w-4" />
+          </button>
         </div>
 
         {/* ========================================================================= */}
@@ -774,21 +948,17 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
             const sc = studentScoresMap.get(st.id) ?? { total: 0, avg: 0 };
             const cust = customDataMap[st.id] || {};
             
+            const gInfo = formatGelarJuara(r, schoolInfo.className || '');
             const cleanSchool = (schoolInfo.schoolName || 'SD').replace(/[^a-zA-Z0-9]/g, '').slice(0, 6).toUpperCase();
             const rankStr = String(r).padStart(2, '0');
-            const smtRomawi = schoolInfo.semester?.includes('1') ? 'XII' : 'VI';
-            const year = schoolInfo.academicYear?.split('/')[0] || '2025';
-            const nom = cust.nomorPiagam || `421.2/${rankStr}/${cleanSchool}/PP/${smtRomawi}/${year}`;
+            const smtRomawi = schoolInfo.semester?.includes('1') ? 'I' : 'II';
+            const year = schoolInfo.academicYear?.split('/')[0] || new Date().getFullYear().toString();
+            const prefix = isMid ? 'PP-ASTS' : 'PP-KMPM';
+            const nom = cust.nomorPiagam || `421.2/${rankStr}/${cleanSchool}/${prefix}/${smtRomawi}/${year}`;
             
-            const kat = cust.kategoriPrestasi || (
-              r === 1 ? `JUARA I (PERTAMA) KELAS ${schoolInfo.className.toUpperCase()}` :
-              r === 2 ? `JUARA II (KEDUA) KELAS ${schoolInfo.className.toUpperCase()}` :
-              r === 3 ? `JUARA III (KETIGA) KELAS ${schoolInfo.className.toUpperCase()}` :
-              r <= 10 ? `PERINGKAT ${r} (SEPULUH BESAR) KELAS ${schoolInfo.className.toUpperCase()}` :
-              `PRESTASI AKADEMIK & KARAKTER TERPUJI KELAS ${schoolInfo.className.toUpperCase()}`
-            );
-
-            const cat = cust.catatanApresiasi || `Atas dedikasi, kedisiplinan, serta prestasi akademik yang sangat membanggakan dengan perolehan Rata-Rata Nilai ${sc.avg} (Total Skor: ${sc.total}) pada Semester ${schoolInfo.semester} Tahun Pelajaran ${schoolInfo.academicYear}.`;
+            const kat = cust.kategoriPrestasi || gInfo.title;
+            const periodLabel = isMid ? 'Asesmen Sumatif Tengah Semester (ASTS)' : `Semester ${schoolInfo.semester}`;
+            const cat = cust.catatanApresiasi || `Atas dedikasi, kedisiplinan, serta prestasi akademik luar biasa sebagai ${gInfo.subtitle} dengan perolehan Rata-Rata Nilai ${sc.avg} (Total Skor: ${sc.total}) pada ${periodLabel} Tahun Pelajaran ${schoolInfo.academicYear}.`;
             const tgl = cust.tanggalPiagam || defaultTanggalPiagam;
 
             return (
@@ -946,28 +1116,64 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
           </div>
         </div>
 
-        {/* Box Gelar Prestasi / Juara */}
-        <div className="max-w-2xl mx-auto my-2">
+        {/* Box Gelar Prestasi / Juara Otomatis Sesuai Urutan Rangking Leger */}
+        <div className="max-w-2xl mx-auto my-1.5 sm:my-2">
           <div
-            className="py-2.5 px-6 rounded-xl border-2 shadow-xs flex items-center justify-center gap-3"
+            className="py-2.5 px-6 rounded-2xl border-2 shadow-xs flex items-center justify-between gap-3 relative overflow-hidden"
             style={{
               borderColor: themeConfig.gold,
               backgroundColor: `${themeConfig.primary}08`
             }}
           >
-            <Trophy className="h-5 w-5 text-amber-600 shrink-0" />
-            <div className="text-center">
+            {/* Left Rank Icon / Crown */}
+            <div className="shrink-0 flex items-center justify-center">
+              {rank === 1 ? (
+                <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-400 text-white flex items-center justify-center shadow-md ring-2 ring-amber-300">
+                  <Crown className="h-5 w-5 text-white" />
+                </div>
+              ) : rank === 2 ? (
+                <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-slate-400 to-slate-300 text-white flex items-center justify-center shadow-md ring-2 ring-slate-200">
+                  <Medal className="h-5 w-5 text-white" />
+                </div>
+              ) : rank === 3 ? (
+                <div className="h-10 w-10 rounded-full bg-gradient-to-tr from-amber-700 to-amber-600 text-white flex items-center justify-center shadow-md ring-2 ring-amber-400">
+                  <Medal className="h-5 w-5 text-white" />
+                </div>
+              ) : (
+                <div className="h-9 w-9 rounded-full bg-amber-100 text-amber-900 flex items-center justify-center font-black text-xs border border-amber-300 shadow-xs">
+                  #{rank}
+                </div>
+              )}
+            </div>
+
+            {/* Juara Title & Subtitle */}
+            <div className="text-center flex-1 min-w-0 px-2">
               <span className="text-[10px] uppercase font-bold tracking-widest text-slate-500 block">
                 Atas Prestasi Membanggakan Sebagai:
               </span>
               <span
-                className="text-sm sm:text-base font-black uppercase tracking-wider block"
+                className="text-base sm:text-lg font-black uppercase tracking-wider block leading-tight mt-0.5"
                 style={{ color: themeConfig.primary }}
               >
                 {kategoriPrestasi}
               </span>
+              <span className="text-[10px] font-bold tracking-wider text-slate-500 uppercase mt-0.5 inline-block">
+                {rank <= 3 ? `Peringkat ${rank} Se-Kelas • Rata-Rata ${score.avg}` : `Urutan Rekap Leger Kelas • Rata-Rata ${score.avg}`}
+              </span>
             </div>
-            <Medal className="h-5 w-5 text-amber-600 shrink-0" />
+
+            {/* Right Rank Trophy / Medal */}
+            <div className="shrink-0 flex items-center justify-center">
+              {rank === 1 ? (
+                <Trophy className="h-8 w-8 text-amber-500 drop-shadow-xs" />
+              ) : rank === 2 ? (
+                <Medal className="h-8 w-8 text-slate-400 drop-shadow-xs" />
+              ) : rank === 3 ? (
+                <Medal className="h-8 w-8 text-amber-700 drop-shadow-xs" />
+              ) : (
+                <Star className="h-7 w-7 text-amber-500 drop-shadow-xs fill-amber-500/30" />
+              )}
+            </div>
           </div>
         </div>
 
@@ -1186,13 +1392,14 @@ const ModalCetakMassalPiagam: React.FC<ModalCetakMassalPiagamProps> = ({
                     <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300">
                       Rata-rata: {sc.avg}
                     </span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-extrabold ${
-                      r === 1 ? 'bg-amber-200 text-amber-900' :
-                      r === 2 ? 'bg-slate-200 text-slate-800' :
-                      r === 3 ? 'bg-orange-200 text-orange-900' :
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 ${
+                      r === 1 ? 'bg-amber-200 text-amber-950 ring-1 ring-amber-400' :
+                      r === 2 ? 'bg-slate-200 text-slate-900 ring-1 ring-slate-300' :
+                      r === 3 ? 'bg-amber-100 text-amber-900 ring-1 ring-amber-300' :
+                      typeof r === 'number' && r <= 6 ? 'bg-amber-50 text-amber-800' :
                       'bg-slate-100 dark:bg-slate-800 text-slate-600'
                     }`}>
-                      Peringkat #{r}
+                      {r === 1 ? '🥇 Juara 1' : r === 2 ? '🥈 Juara 2' : r === 3 ? '🥉 Juara 3' : typeof r === 'number' && r <= 6 ? `🎖️ Harapan ${r - 3}` : `Peringkat #${r}`}
                     </span>
                   </div>
                 </label>
