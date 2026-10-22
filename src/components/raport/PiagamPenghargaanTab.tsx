@@ -1,9 +1,18 @@
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useApp } from '../../context/AppContext';
 import { Student } from '../../types';
 import { SchoolLogoRenderer } from '../common/SchoolLogoRenderer';
 import {
-  Award,
+  PiagamBorderStyle,
+  PiagamColorTheme,
+  PiagamSealType,
+  FRAME_STYLE_OPTIONS,
+  COLOR_THEME_OPTIONS,
+  getColorTheme,
+  PiagamFrameDecorator,
+  PiagamSealDecorator
+} from './PiagamFrameDecorations';
+import {
   Trophy,
   Medal,
   Star,
@@ -11,19 +20,17 @@ import {
   ChevronLeft,
   ChevronRight,
   Sparkles,
-  Calendar,
-  CheckCircle2,
-  SlidersHorizontal,
   FileText,
-  User,
   Crown,
-  Layers,
   Edit3,
   RotateCcw,
-  Check
+  Check,
+  Palette,
+  ShieldCheck,
+  Layers
 } from 'lucide-react';
 
-export type PiagamTheme = 'royal_gold' | 'batik_nusantara' | 'emerald_prestige' | 'ruby_excellence' | 'classic_diplomat';
+export type { PiagamBorderStyle, PiagamColorTheme, PiagamSealType };
 export type PiagamPaperSize = 'A4' | 'F4';
 
 export interface PiagamCustomData {
@@ -38,45 +45,6 @@ interface PiagamPenghargaanTabProps {
   onSelectStudentId?: (id: string) => void;
 }
 
-// Preset Frame Themes
-const THEME_OPTIONS: { id: PiagamTheme; label: string; desc: string; color: string; bgBadge: string }[] = [
-  {
-    id: 'royal_gold',
-    label: 'Royal Gold (Emas Kemewahan)',
-    desc: 'Bingkai keemasan berornamen klasik dengan medali emas megah',
-    color: '#b45309',
-    bgBadge: 'bg-amber-100 text-amber-900 border-amber-300'
-  },
-  {
-    id: 'batik_nusantara',
-    label: 'Batik Nusantara (Navy & Gold)',
-    desc: 'Nuansa resmi Kemendikbud perpaduan biru kehormatan dan ornamen emas',
-    color: '#1e3a8a',
-    bgBadge: 'bg-blue-100 text-blue-900 border-blue-300'
-  },
-  {
-    id: 'emerald_prestige',
-    label: 'Emerald Prestige (Zamrud Juara)',
-    desc: 'Warna hijau zamrud mulia dengan ornamen geometris dan bintang emas',
-    color: '#065f46',
-    bgBadge: 'bg-emerald-100 text-emerald-900 border-emerald-300'
-  },
-  {
-    id: 'ruby_excellence',
-    label: 'Ruby Excellence (Marun Mulia)',
-    desc: 'Warna merah marun prestisius dengan aksen perunggu dan mahkota',
-    color: '#991b1b',
-    bgBadge: 'bg-rose-100 text-rose-900 border-rose-300'
-  },
-  {
-    id: 'classic_diplomat',
-    label: 'Classic Diplomat (Monokrom Elegan)',
-    desc: 'Format hitam-putih formal elegan, tajam dan hemat tinta',
-    color: '#0f172a',
-    bgBadge: 'bg-slate-100 text-slate-900 border-slate-300'
-  }
-];
-
 export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
   initialStudentId,
   onSelectStudentId
@@ -90,7 +58,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     calculateStudentRankings
   } = useApp();
 
-  // Rankings map
+  // Rankings map from Leger
   const rankings = useMemo(() => calculateStudentRankings(), [students, subjects]);
   const rankingsMap = useMemo(() => {
     const map = new Map<string, number>();
@@ -119,17 +87,23 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     });
   }, [students, rankingsMap]);
 
-  // State
+  // Selected Student
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
     initialStudentId || sortedStudentsByRank[0]?.id || students[0]?.id || ''
   );
-  const [theme, setTheme] = useState<PiagamTheme>('royal_gold');
+
+  // Frame & Appearance State
+  const [borderStyle, setBorderStyle] = useState<PiagamBorderStyle>('royal_baroque');
+  const [colorTheme, setColorTheme] = useState<PiagamColorTheme>('gold');
+  const [sealType, setSealType] = useState<PiagamSealType>('ribbon_medal');
   const [paperSize, setPaperSize] = useState<PiagamPaperSize>('A4');
   const [filterMode, setFilterMode] = useState<'all' | 'top3' | 'top5' | 'top10'>('top3');
+  const [frameCategoryFilter, setFrameCategoryFilter] = useState<string>('all');
+  const [showWatermark, setShowWatermark] = useState<boolean>(true);
+
+  // Batch Print & Custom Data State
   const [isBatchModalOpen, setIsBatchModalOpen] = useState(false);
   const [batchPrintStudents, setBatchPrintStudents] = useState<Student[] | null>(null);
-
-  // Custom Piagam Overrides per student ID
   const [customDataMap, setCustomDataMap] = useState<Record<string, PiagamCustomData>>({});
   const [isEditingCustom, setIsEditingCustom] = useState(false);
 
@@ -164,7 +138,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     return `PRESTASI AKADEMIK & KARAKTER TERPUJI KELAS ${schoolInfo.className.toUpperCase()}`;
   }, [activeStudentRank, schoolInfo.className]);
 
-  // Default tanggal piagam (disamakan dengan tanggal rapor siswa)
+  // Default tanggal piagam (disamakan persis dengan tanggal rapor siswa)
   const defaultTanggalPiagam = useMemo(() => {
     if (schoolInfo.tanggalRapor) return schoolInfo.tanggalRapor;
     const rep = selectedStudent ? getStudentReport(selectedStudent.id) : null;
@@ -206,7 +180,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     });
   };
 
-  // Navigations
+  // Student Navigations
   const currentRankIndex = sortedStudentsByRank.findIndex(s => s.id === selectedStudentId);
   const handlePrevStudent = () => {
     if (currentRankIndex > 0) {
@@ -224,13 +198,22 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     }
   };
 
-  // Filtered students for list/select
+  // Filtered students for dropdown
   const displayedStudents = useMemo(() => {
     if (filterMode === 'top3') return sortedStudentsByRank.slice(0, 3);
     if (filterMode === 'top5') return sortedStudentsByRank.slice(0, 5);
     if (filterMode === 'top10') return sortedStudentsByRank.slice(0, 10);
     return sortedStudentsByRank;
   }, [sortedStudentsByRank, filterMode]);
+
+  // Filtered Frame Options
+  const displayedFrameOptions = useMemo(() => {
+    if (frameCategoryFilter === 'all') return FRAME_STYLE_OPTIONS;
+    return FRAME_STYLE_OPTIONS.filter(f => f.category === frameCategoryFilter);
+  }, [frameCategoryFilter]);
+
+  // Active Theme Config
+  const activeThemeConfig = useMemo(() => getColorTheme(colorTheme), [colorTheme]);
 
   // Single Print handler
   const handlePrintSingle = () => {
@@ -249,78 +232,6 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     }, 200);
   };
 
-  // Color scheme based on theme
-  const themeStyles = useMemo(() => {
-    switch (theme) {
-      case 'batik_nusantara':
-        return {
-          primary: '#1e3a8a',
-          gold: '#b45309',
-          borderOuter: 'border-[#1e3a8a]',
-          borderInner: 'border-[#b45309]',
-          badgeBg: 'from-blue-900 to-indigo-950',
-          titleColor: '#1e3a8a',
-          ribbonColor: '#b45309',
-          gradientBg: 'from-blue-50/40 via-white to-amber-50/30',
-          sealColor: '#b45309',
-          accentText: 'text-blue-950'
-        };
-      case 'emerald_prestige':
-        return {
-          primary: '#065f46',
-          gold: '#d97706',
-          borderOuter: 'border-[#065f46]',
-          borderInner: 'border-[#d97706]',
-          badgeBg: 'from-emerald-900 to-teal-950',
-          titleColor: '#065f46',
-          ribbonColor: '#d97706',
-          gradientBg: 'from-emerald-50/40 via-white to-amber-50/30',
-          sealColor: '#d97706',
-          accentText: 'text-emerald-950'
-        };
-      case 'ruby_excellence':
-        return {
-          primary: '#991b1b',
-          gold: '#b45309',
-          borderOuter: 'border-[#991b1b]',
-          borderInner: 'border-[#b45309]',
-          badgeBg: 'from-rose-900 to-red-950',
-          titleColor: '#991b1b',
-          ribbonColor: '#b45309',
-          gradientBg: 'from-rose-50/40 via-white to-amber-50/30',
-          sealColor: '#b45309',
-          accentText: 'text-rose-950'
-        };
-      case 'classic_diplomat':
-        return {
-          primary: '#0f172a',
-          gold: '#475569',
-          borderOuter: 'border-slate-900',
-          borderInner: 'border-slate-600',
-          badgeBg: 'from-slate-800 to-slate-950',
-          titleColor: '#0f172a',
-          ribbonColor: '#475569',
-          gradientBg: 'from-slate-50 via-white to-slate-50',
-          sealColor: '#475569',
-          accentText: 'text-slate-950'
-        };
-      case 'royal_gold':
-      default:
-        return {
-          primary: '#854d0e',
-          gold: '#b45309',
-          borderOuter: 'border-[#92400e]',
-          borderInner: 'border-[#b45309]',
-          badgeBg: 'from-amber-800 via-amber-900 to-yellow-950',
-          titleColor: '#854d0e',
-          ribbonColor: '#b45309',
-          gradientBg: 'from-amber-50/50 via-white to-yellow-50/40',
-          sealColor: '#b45309',
-          accentText: 'text-amber-950'
-        };
-    }
-  }, [theme]);
-
   const isF4 = paperSize === 'F4';
 
   return (
@@ -330,7 +241,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
         @media print {
           @page {
             size: ${isF4 ? '330mm 215mm' : '297mm 210mm'} landscape !important;
-            margin: 6mm !important;
+            margin: 5mm !important;
           }
           body {
             background-color: white !important;
@@ -343,8 +254,8 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
           }
           .piagam-single-card {
             width: 100% !important;
-            height: ${isF4 ? '203mm' : '198mm'} !important;
-            max-height: ${isF4 ? '203mm' : '198mm'} !important;
+            height: ${isF4 ? '205mm' : '200mm'} !important;
+            max-height: ${isF4 ? '205mm' : '200mm'} !important;
             box-sizing: border-box !important;
             page-break-inside: avoid !important;
             break-inside: avoid !important;
@@ -364,6 +275,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
       {/* 1. BILAH KONTROL PIAGAM PENGHARGAAN (INTERAKTIF & RESPONSIF)              */}
       {/* ========================================================================= */}
       <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm space-y-4 print-hidden-piagam">
+        
         {/* Banner Utama Piagam */}
         <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 p-4 rounded-2xl bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 text-white shadow-md">
           <div className="flex items-center gap-3.5">
@@ -384,7 +296,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
                 Format Piagam Penghargaan Siswa Berprestasi
               </h1>
               <p className="text-xs text-amber-100/90 leading-relaxed mt-0.5">
-                Cetak piagam penghargaan resmi nan mewah untuk siswa berprestasi di kelas (Juara 1, 2, 3, 10 besar, nilai terbaik mapel, maupun siswa teladan).
+                Pilih dari 9 koleksi bingkai mewah, 6 tema warna, dan 4 model lencana resmi untuk mencetak piagam penghargaan berstandar nasional.
               </p>
             </div>
           </div>
@@ -511,79 +423,177 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
           </div>
         </div>
 
-        {/* Pilihan Gaya Bingkai & Ukuran Kertas */}
+        {/* ========================================================================= */}
+        {/* PANEL PILIHAN BINGKAI PIAGAM MENARIK (9 MODEL BINGKAI EKSKLUSIF)          */}
+        {/* ========================================================================= */}
         <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-3">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2">
               <Sparkles className="h-4 w-4 text-amber-600" />
-              <span className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                Pilih Desain Bingkai Piagam:
+              <span className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                Pilihan Model Bingkai Piagam ({FRAME_STYLE_OPTIONS.length} Desain Menarik):
               </span>
             </div>
 
-            {/* Paper Size selector (A4 vs F4) */}
-            <div className="flex items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl border border-slate-200 dark:border-slate-700">
-              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 px-2 flex items-center gap-1">
-                <FileText className="h-3.5 w-3.5 text-amber-600" />
-                Ukuran Kertas:
-              </span>
-              <button
-                type="button"
-                onClick={() => setPaperSize('A4')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  paperSize === 'A4'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
-                }`}
-                title="A4 Landscape: 29.7 x 21.0 cm"
-              >
-                A4 (29.7 x 21 cm)
-              </button>
-              <button
-                type="button"
-                onClick={() => setPaperSize('F4')}
-                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  paperSize === 'F4'
-                    ? 'bg-amber-600 text-white shadow-xs'
-                    : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
-                }`}
-                title="F4 / Folio Landscape: 33.0 x 21.5 cm"
-              >
-                F4 / Folio (33 x 21.5 cm)
-              </button>
+            {/* Filter Kategori Bingkai */}
+            <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+              {['all', 'Klasik & Kerajaan', 'Tradisi Nusantara', 'Resmi & Kedinasan', 'Modern & Prestisius'].map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setFrameCategoryFilter(cat)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold whitespace-nowrap transition-colors ${
+                    frameCategoryFilter === cat
+                      ? 'bg-amber-600 text-white'
+                      : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200'
+                  }`}
+                >
+                  {cat === 'all' ? 'Semua Model' : cat}
+                </button>
+              ))}
             </div>
           </div>
 
-          {/* Theme Badges Grid */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-            {THEME_OPTIONS.map(opt => {
-              const isSelected = theme === opt.id;
+          {/* Grid 9 Model Bingkai Eksklusif */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+            {displayedFrameOptions.map(frame => {
+              const isSelected = borderStyle === frame.id;
               return (
                 <button
-                  key={opt.id}
+                  key={frame.id}
                   type="button"
-                  onClick={() => setTheme(opt.id)}
-                  className={`p-2.5 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
+                  onClick={() => {
+                    setBorderStyle(frame.id);
+                    // Optionally suggest matching color theme
+                    if (frame.recommendedColor) {
+                      setColorTheme(frame.recommendedColor);
+                    }
+                  }}
+                  className={`p-3 rounded-xl border text-left transition-all relative overflow-hidden flex flex-col justify-between ${
                     isSelected
-                      ? 'border-amber-600 bg-amber-50/70 dark:bg-amber-950/40 shadow-xs ring-2 ring-amber-500/40'
-                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 hover:border-amber-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      ? 'border-amber-600 bg-amber-50/80 dark:bg-amber-950/40 shadow-sm ring-2 ring-amber-500/40'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-800/80 hover:border-amber-400 hover:bg-slate-50 dark:hover:bg-slate-800'
                   }`}
                 >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: opt.color }} />
-                    {isSelected && <Check className="h-3.5 w-3.5 text-amber-600" />}
+                  <div className="flex items-center justify-between mb-1.5">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-900/60 px-2 py-0.5 rounded-md">
+                      {frame.category}
+                    </span>
+                    {isSelected && (
+                      <span className="flex items-center gap-1 text-[11px] font-black text-amber-700 dark:text-amber-300">
+                        <Check className="h-4 w-4 text-amber-600" />
+                        Aktif
+                      </span>
+                    )}
                   </div>
                   <div>
-                    <h4 className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
-                      {opt.label.split('(')[0]}
+                    <h4 className="text-xs font-black text-slate-900 dark:text-white leading-tight">
+                      {frame.name}
                     </h4>
-                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 line-clamp-1">
-                      {opt.desc}
+                    <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 line-clamp-2 leading-relaxed">
+                      {frame.tagline}
                     </p>
                   </div>
                 </button>
               );
             })}
+          </div>
+
+          {/* Baris Pilihan: Warna Tema, Model Lencana Stempel, Ukuran Kertas & Watermark */}
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-4 text-xs">
+            {/* Pilihan Warna & Aksen */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                <Palette className="h-3.5 w-3.5 text-amber-600" />
+                Warna & Aksen:
+              </span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {COLOR_THEME_OPTIONS.map(c => {
+                  const isSelected = colorTheme === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      onClick={() => setColorTheme(c.id)}
+                      className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition-all ${
+                        isSelected
+                          ? 'border-amber-600 bg-white dark:bg-slate-800 shadow-xs ring-1 ring-amber-500 font-bold text-slate-900 dark:text-white'
+                          : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-400'
+                      }`}
+                      title={c.name}
+                    >
+                      <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: c.primary }} />
+                      <span className="text-[11px]">{c.name.split('(')[0].trim()}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Pilihan Model Lencana Stempel Bawah */}
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[11px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                <ShieldCheck className="h-3.5 w-3.5 text-amber-600" />
+                Model Lencana / Seal:
+              </span>
+              <select
+                value={sealType}
+                onChange={e => setSealType(e.target.value as PiagamSealType)}
+                className="px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-[11px] font-bold text-slate-900 dark:text-white outline-none"
+              >
+                <option value="ribbon_medal">🥇 Medali Emas Pita Menjuntai</option>
+                <option value="wax_seal">★ Stempel Emboss Emas Klasik</option>
+                <option value="star_excellence">⭐ Bintang Kehormatan 3D</option>
+                <option value="tutwuri_crest">📖 Lambang Tut Wuri Kemendikbud</option>
+                <option value="none">Tanpa Lencana Stempel</option>
+              </select>
+            </div>
+
+            {/* Ukuran Kertas Selector & Watermark Toggle */}
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Paper Size selector (A4 vs F4) */}
+              <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 px-1.5 flex items-center gap-1">
+                  <FileText className="h-3 w-3 text-amber-600" />
+                  Kertas:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPaperSize('A4')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                    paperSize === 'A4'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
+                  }`}
+                  title="A4 Landscape: 29.7 x 21.0 cm"
+                >
+                  A4
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPaperSize('F4')}
+                  className={`px-2 py-0.5 rounded text-[11px] font-bold transition-all ${
+                    paperSize === 'F4'
+                      ? 'bg-amber-600 text-white shadow-xs'
+                      : 'text-slate-700 dark:text-slate-300 hover:text-amber-600'
+                  }`}
+                  title="F4 / Folio Landscape: 33.0 x 21.5 cm"
+                >
+                  F4 (Folio)
+                </button>
+              </div>
+
+              {/* Watermark Toggle */}
+              <label className="flex items-center gap-1.5 cursor-pointer text-[11px] text-slate-700 dark:text-slate-300">
+                <input
+                  type="checkbox"
+                  checked={showWatermark}
+                  onChange={e => setShowWatermark(e.target.checked)}
+                  className="rounded text-amber-600 focus:ring-amber-500"
+                />
+                <span>Watermark Lambang</span>
+              </label>
+            </div>
           </div>
         </div>
 
@@ -626,7 +636,7 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
           <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 space-y-3 animate-in fade-in duration-150">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-extrabold uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                <SlidersHorizontal className="h-3.5 w-3.5 text-amber-600" />
+                <Layers className="h-3.5 w-3.5 text-amber-600" />
                 Kustomisasi Format Piagam: {selectedStudent?.nama}
               </h3>
               <span className="text-[11px] text-slate-500">
@@ -722,9 +732,12 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
             student={selectedStudent}
             rank={activeStudentRank}
             score={activeStudentScore}
-            theme={theme}
-            themeStyles={themeStyles}
+            borderStyle={borderStyle}
+            colorTheme={colorTheme}
+            themeConfig={activeThemeConfig}
+            sealType={sealType}
             paperSize={paperSize}
+            showWatermark={showWatermark}
             nomorPiagam={currentNomor}
             kategoriPrestasi={currentKategori}
             catatanApresiasi={currentCatatan}
@@ -744,7 +757,8 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
           rankingsMap={rankingsMap}
           scoresMap={studentScoresMap}
           paperSize={paperSize}
-          theme={theme}
+          borderStyle={borderStyle}
+          colorTheme={colorTheme}
           onConfirmBatchPrint={handleStartBatchPrint}
         />
       )}
@@ -782,9 +796,12 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
                 student={st}
                 rank={r}
                 score={sc}
-                theme={theme}
-                themeStyles={themeStyles}
+                borderStyle={borderStyle}
+                colorTheme={colorTheme}
+                themeConfig={activeThemeConfig}
+                sealType={sealType}
                 paperSize={paperSize}
+                showWatermark={showWatermark}
                 nomorPiagam={nom}
                 kategoriPrestasi={kat}
                 catatanApresiasi={cat}
@@ -806,9 +823,12 @@ interface PiagamCertificateCardProps {
   student: Student;
   rank: number;
   score: { total: number; avg: number };
-  theme: PiagamTheme;
-  themeStyles: any;
+  borderStyle: PiagamBorderStyle;
+  colorTheme: PiagamColorTheme;
+  themeConfig: any;
+  sealType: PiagamSealType;
   paperSize: PiagamPaperSize;
+  showWatermark: boolean;
   nomorPiagam: string;
   kategoriPrestasi: string;
   catatanApresiasi: string;
@@ -819,9 +839,12 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
   student,
   rank,
   score,
-  theme,
-  themeStyles,
+  borderStyle,
+  colorTheme,
+  themeConfig,
+  sealType,
   paperSize,
+  showWatermark,
   nomorPiagam,
   kategoriPrestasi,
   catatanApresiasi,
@@ -839,36 +862,31 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
 
   return (
     <div
-      className={`piagam-single-card bg-white relative text-slate-900 ${widthStyle} ${heightStyle} p-6 sm:p-9 shadow-xl rounded-sm print:rounded-none overflow-hidden flex flex-col justify-between border-[6px] ${themeStyles.borderOuter}`}
+      className={`piagam-single-card bg-white relative text-slate-900 ${widthStyle} ${heightStyle} p-6 sm:p-9 shadow-xl rounded-sm print:rounded-none overflow-hidden flex flex-col justify-between border-[6px] ${themeConfig.borderOuter}`}
       style={{
         boxSizing: 'border-box',
         backgroundColor: '#ffffff'
       }}
     >
-      {/* Ornamen Bingkai Vektor Eksklusif Piagam */}
-      <div className={`absolute inset-2 sm:inset-3 border-2 ${themeStyles.borderInner} pointer-events-none`} />
-      <div className={`absolute inset-3 sm:inset-4 border border-dashed opacity-60 ${themeStyles.borderInner} pointer-events-none`} />
-
-      {/* Sudut Ornamen Vektor (Corner Ornaments) */}
-      <CornerOrnament position="top-left" color={themeStyles.primary} goldColor={themeStyles.gold} />
-      <CornerOrnament position="top-right" color={themeStyles.primary} goldColor={themeStyles.gold} />
-      <CornerOrnament position="bottom-left" color={themeStyles.primary} goldColor={themeStyles.gold} />
-      <CornerOrnament position="bottom-right" color={themeStyles.primary} goldColor={themeStyles.gold} />
+      {/* Dekorasi Bingkai Vektor Eksklusif Sesuai Model Terpilih */}
+      <PiagamFrameDecorator style={borderStyle} colorTheme={colorTheme} />
 
       {/* Watermark Logo Tut Wuri Handayani di Tengah Piagam (Transparan) */}
-      <div className="absolute inset-0 flex items-center justify-center opacity-[0.045] pointer-events-none select-none z-0">
-        <SchoolLogoRenderer
-          preset={schoolInfo.logoLeftPreset || 'tutwuri'}
-          customUrl={schoolInfo.logoLeft}
-          width={380}
-          alt="Watermark Tut Wuri Handayani"
-        />
-      </div>
+      {showWatermark && (
+        <div className="absolute inset-0 flex items-center justify-center opacity-[0.045] pointer-events-none select-none z-0">
+          <SchoolLogoRenderer
+            preset={schoolInfo.logoLeftPreset || 'tutwuri'}
+            customUrl={schoolInfo.logoLeft}
+            width={380}
+            alt="Watermark Tut Wuri Handayani"
+          />
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* 1. KOP RESMI PIAGAM PENGHARGAAN (ATAS)                                    */}
       {/* ========================================================================= */}
-      <div className="relative z-10 w-full flex items-center justify-between border-b-2 pb-3" style={{ borderColor: `${themeStyles.gold}80` }}>
+      <div className="relative z-10 w-full flex items-center justify-between border-b-2 pb-3" style={{ borderColor: `${themeConfig.gold}80` }}>
         {/* Logo Kiri (Tut Wuri Handayani) */}
         <div className="w-20 flex justify-center">
           <SchoolLogoRenderer
@@ -889,7 +907,7 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
           </h3>
           <h2
             className="text-base sm:text-xl font-black tracking-wide uppercase mt-0.5"
-            style={{ color: themeStyles.primary }}
+            style={{ color: themeConfig.primary }}
           >
             {schoolInfo.schoolName || 'SEKOLAH DASAR'}
           </h2>
@@ -915,7 +933,7 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
       <div className="relative z-10 text-center my-2 sm:my-3">
         <h1
           className="text-2xl sm:text-3xl font-serif font-black tracking-widest uppercase"
-          style={{ color: themeStyles.titleColor }}
+          style={{ color: themeConfig.titleColor }}
         >
           PIAGAM PENGHARGAAN
         </h1>
@@ -925,9 +943,9 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
 
         {/* Garis Pembatas Ornamen */}
         <div className="flex items-center justify-center gap-2 mt-1">
-          <div className="h-[2px] w-20 sm:w-32" style={{ backgroundColor: themeStyles.gold }} />
+          <div className="h-[2px] w-20 sm:w-32" style={{ backgroundColor: themeConfig.gold }} />
           <Star className="h-3.5 w-3.5 fill-amber-500 text-amber-500" />
-          <div className="h-[2px] w-20 sm:w-32" style={{ backgroundColor: themeStyles.gold }} />
+          <div className="h-[2px] w-20 sm:w-32" style={{ backgroundColor: themeConfig.gold }} />
         </div>
 
         <p className="text-[11px] font-mono font-bold text-slate-700 tracking-wide mt-1">
@@ -947,7 +965,7 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
         <div className="my-1">
           <h2
             className="text-xl sm:text-2xl lg:text-3xl font-black tracking-wider uppercase font-serif"
-            style={{ color: themeStyles.titleColor }}
+            style={{ color: themeConfig.titleColor }}
           >
             {student.nama}
           </h2>
@@ -965,8 +983,8 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
           <div
             className="py-2.5 px-6 rounded-xl border-2 shadow-xs flex items-center justify-center gap-3"
             style={{
-              borderColor: themeStyles.gold,
-              backgroundColor: `${themeStyles.primary}08`
+              borderColor: themeConfig.gold,
+              backgroundColor: `${themeConfig.primary}08`
             }}
           >
             <Trophy className="h-5 w-5 text-amber-600 shrink-0" />
@@ -976,7 +994,7 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
               </span>
               <span
                 className="text-sm sm:text-base font-black uppercase tracking-wider block"
-                style={{ color: themeStyles.primary }}
+                style={{ color: themeConfig.primary }}
               >
                 {kategoriPrestasi}
               </span>
@@ -997,7 +1015,7 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
       {/* ========================================================================= */}
       {/* 4. PENGESAHAN & TANDA TANGAN (BAWAH)                                       */}
       {/* ========================================================================= */}
-      <div className="relative z-10 w-full pt-3 mt-2 border-t" style={{ borderColor: `${themeStyles.gold}40` }}>
+      <div className="relative z-10 w-full pt-3 mt-2 border-t" style={{ borderColor: `${themeConfig.gold}40` }}>
         <div className="flex items-end justify-between px-6 text-center text-xs">
           {/* Tanda Tangan Wali Kelas (Kiri) */}
           <div className="w-56">
@@ -1017,24 +1035,12 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
             </p>
           </div>
 
-          {/* Lencana Stempel Emas Piagam di Tengah (Gold Ribbon Seal) */}
-          <div className="flex flex-col items-center justify-center pb-1">
-            <div
-              className="w-18 h-18 rounded-full border-2 border-dashed flex flex-col items-center justify-center p-1 relative shadow-inner"
-              style={{
-                borderColor: themeStyles.gold,
-                backgroundColor: `${themeStyles.gold}15`
-              }}
-            >
-              <Award className="h-6 w-6 text-amber-600" />
-              <span className="text-[8px] font-black uppercase tracking-wider text-amber-900 mt-0.5">
-                TERBAIK
-              </span>
-              <span className="text-[7px] font-bold text-amber-700 font-mono">
-                {schoolInfo.academicYear}
-              </span>
-            </div>
-          </div>
+          {/* Lencana Stempel Piagam di Tengah (Dynamic Seal Decorator) */}
+          <PiagamSealDecorator
+            sealType={sealType}
+            theme={themeConfig}
+            academicYear={schoolInfo.academicYear}
+          />
 
           {/* Tanda Tangan Kepala Sekolah (Kanan) */}
           <div className="w-56">
@@ -1060,44 +1066,6 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
 };
 
 // ===============================================================================
-// CORNER ORNAMENT VECTOR SVG
-// ===============================================================================
-
-const CornerOrnament: React.FC<{
-  position: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right';
-  color: string;
-  goldColor: string;
-}> = ({ position, color, goldColor }) => {
-  const getTransforms = () => {
-    switch (position) {
-      case 'top-left':
-        return 'top-2 left-2';
-      case 'top-right':
-        return 'top-2 right-2 scale-x-[-1]';
-      case 'bottom-left':
-        return 'bottom-2 left-2 scale-y-[-1]';
-      case 'bottom-right':
-        return 'bottom-2 right-2 scale-[-1]';
-    }
-  };
-
-  return (
-    <div className={`absolute ${getTransforms()} pointer-events-none select-none z-10 w-12 h-12`}>
-      <svg viewBox="0 0 48 48" fill="none" className="w-full h-full">
-        {/* Sudut luar tebal */}
-        <path d="M2 24 L2 2 L24 2" stroke={color} strokeWidth="3" strokeLinecap="round" />
-        {/* Sudut dalam aksen emas */}
-        <path d="M6 20 L6 6 L20 6" stroke={goldColor} strokeWidth="1.5" strokeLinecap="round" />
-        {/* Hiasan floral ornamen */}
-        <circle cx="10" cy="10" r="2.5" fill={goldColor} />
-        <path d="M12 12 Q 22 14, 28 8" stroke={goldColor} strokeWidth="1" strokeLinecap="round" />
-        <path d="M12 12 Q 14 22, 8 28" stroke={goldColor} strokeWidth="1" strokeLinecap="round" />
-      </svg>
-    </div>
-  );
-};
-
-// ===============================================================================
 // MODAL CETAK MASSAL PIAGAM PENGHARGAAN
 // ===============================================================================
 
@@ -1108,7 +1076,8 @@ interface ModalCetakMassalPiagamProps {
   rankingsMap: Map<string, number>;
   scoresMap: Map<string, { total: number; avg: number }>;
   paperSize: PiagamPaperSize;
-  theme: PiagamTheme;
+  borderStyle: PiagamBorderStyle;
+  colorTheme: PiagamColorTheme;
   onConfirmBatchPrint: (selectedStudents: Student[]) => void;
 }
 
@@ -1119,7 +1088,8 @@ const ModalCetakMassalPiagam: React.FC<ModalCetakMassalPiagamProps> = ({
   rankingsMap,
   scoresMap,
   paperSize,
-  theme,
+  borderStyle,
+  colorTheme,
   onConfirmBatchPrint
 }) => {
   const [selectedIds, setSelectedIds] = useState<string[]>(
@@ -1162,7 +1132,7 @@ const ModalCetakMassalPiagam: React.FC<ModalCetakMassalPiagamProps> = ({
                 Cetak Massal Piagam Penghargaan
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Kertas: <strong>{paperSize} Landscape</strong> • Tema: <strong>{theme}</strong>
+                Kertas: <strong>{paperSize} Landscape</strong> • Bingkai: <strong>{borderStyle}</strong> • Warna: <strong>{colorTheme}</strong>
               </p>
             </div>
           </div>
