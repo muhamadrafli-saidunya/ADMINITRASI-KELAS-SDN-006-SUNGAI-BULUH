@@ -30,8 +30,11 @@ import {
   ShieldCheck,
   Layers,
   FileSpreadsheet,
-  Award
+  Award,
+  Download
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export type { PiagamBorderStyle, PiagamColorTheme, PiagamSealType };
 export type PiagamPaperSize = 'A4' | 'F4';
@@ -368,6 +371,57 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
     }, 150);
   };
 
+  // Single PDF Download handler (Direct PDF export without printer dialog)
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  const handleDownloadPdf = async () => {
+    if (isGeneratingPdf) return;
+    const cardEl = document.getElementById('piagam-preview-card-inner') || (document.querySelector('.piagam-single-card') as HTMLElement);
+    if (!cardEl) return;
+
+    try {
+      setIsGeneratingPdf(true);
+
+      // Brief wait to ensure styles & images are ready
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      const canvas = await html2canvas(cardEl, {
+        scale: 2.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false,
+        imageTimeout: 15000
+      });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.98);
+
+      const isF4Paper = paperSize === 'F4';
+      const pdfWidth = isF4Paper ? 330 : 297;
+      const pdfHeight = isF4Paper ? 215 : 210;
+
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: isF4Paper ? [330, 215] : 'a4'
+      });
+
+      pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
+
+      const safeStudentName = (selectedStudent?.nama || 'Siswa').replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const safeRank = activeStudentRank === 1 ? 'Juara1' : activeStudentRank === 2 ? 'Juara2' : activeStudentRank === 3 ? 'Juara3' : `Peringkat${activeStudentRank}`;
+      const safeClass = (schoolInfo.className || 'Kelas').replace(/[^a-zA-Z0-9_\-]/g, '_');
+      const fileName = `Piagam_${safeRank}_${safeStudentName}_${safeClass}.pdf`;
+
+      pdf.save(fileName);
+    } catch (error) {
+      console.error('Gagal membuat PDF piagam:', error);
+      alert('Maaf, terjadi kendala saat membuat file PDF. Silakan coba kembali.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
+  };
+
   // Batch Print handler
   const handleStartBatchPrint = (studentsList: Student[]) => {
     setBatchPrintStudents(studentsList);
@@ -446,18 +500,41 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
             </div>
           </div>
 
-          {/* Quick Print Actions */}
+          {/* Quick Print & Download Actions */}
           <div className="flex items-center gap-2 flex-wrap shrink-0">
+            {/* Tombol Unduh sebagai PDF Langsung Tanpa Dialog Printer */}
+            <button
+              type="button"
+              onClick={handleDownloadPdf}
+              disabled={isGeneratingPdf}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-red-600 via-rose-600 to-red-700 hover:from-red-700 hover:to-rose-800 text-white font-black text-xs shadow-md hover:shadow-lg active:scale-95 transition-all cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed border border-red-400/40"
+              title="Unduh piagam siswa ini langsung sebagai file PDF digital beresolusi tinggi tanpa dialog print"
+            >
+              {isGeneratingPdf ? (
+                <>
+                  <div className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Membuat PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="h-4 w-4 text-white" />
+                  <span>Unduh sebagai PDF</span>
+                </>
+              )}
+            </button>
+
+            {/* Tombol Cetak Piagam */}
             <button
               type="button"
               onClick={handlePrintSingle}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-amber-950 font-black text-xs shadow-md hover:bg-amber-50 active:scale-95 transition-all cursor-pointer"
-              title="Cetak piagam siswa aktif saat ini"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-amber-950 font-black text-xs shadow-md hover:bg-amber-50 active:scale-95 transition-all cursor-pointer border border-amber-200"
+              title="Cetak piagam siswa aktif saat ini melalui printer"
             >
               <Printer className="h-4 w-4 text-amber-700" />
               <span>Cetak Piagam Siswa Ini</span>
             </button>
 
+            {/* Tombol Cetak Massal */}
             <button
               type="button"
               onClick={() => setIsBatchModalOpen(true)}
@@ -898,26 +975,72 @@ export const PiagamPenghargaanTab: React.FC<PiagamPenghargaanTabProps> = ({
         )}
       </div>
 
-      {/* ========================================================================= */}
-      {/* 2. LEMBAR PREVIEW PIAGAM PENGHARGAAN (LANDSCAPE RESMI NAN MEWAH)          */}
-      {/* ========================================================================= */}
       {selectedStudent && (
-        <div className="flex justify-center overflow-x-auto pb-8 print:p-0">
-          <PiagamCertificateCard
-            student={selectedStudent}
-            rank={activeStudentRank}
-            score={activeStudentScore}
-            borderStyle={borderStyle}
-            colorTheme={colorTheme}
-            themeConfig={activeThemeConfig}
-            sealType={sealType}
-            paperSize={paperSize}
-            showWatermark={showWatermark}
-            nomorPiagam={currentNomor}
-            kategoriPrestasi={currentKategori}
-            catatanApresiasi={currentCatatan}
-            tanggalPiagam={currentTanggal}
-          />
+        <div className="space-y-3">
+          {/* Quick Action Bar Tepat di Atas Preview Piagam */}
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5 px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 print:hidden max-w-[1120px] mx-auto">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Crown className="h-4 w-4 text-amber-500" />
+                <span>Piagam Aktif: <strong className="text-amber-700 dark:text-amber-400">{selectedStudent.nama}</strong> ({gelarInfo.badge})</span>
+              </span>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {/* Tombol Unduh sebagai PDF */}
+              <button
+                type="button"
+                onClick={handleDownloadPdf}
+                disabled={isGeneratingPdf}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white font-black text-xs shadow-xs active:scale-95 transition-all cursor-pointer disabled:opacity-60"
+                title="Unduh langsung sebagai file PDF tanpa dialog printer"
+              >
+                {isGeneratingPdf ? (
+                  <>
+                    <div className="h-3.5 w-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    <span>Menyimpan PDF...</span>
+                  </>
+                ) : (
+                  <>
+                    <Download className="h-3.5 w-3.5 text-white" />
+                    <span>Unduh sebagai PDF</span>
+                  </>
+                )}
+              </button>
+
+              {/* Tombol Cetak Printer */}
+              <button
+                type="button"
+                onClick={handlePrintSingle}
+                className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-800 dark:text-slate-200 font-bold text-xs shadow-xs active:scale-95 transition-all cursor-pointer border border-slate-200 dark:border-slate-600"
+                title="Buka dialog printer untuk mencetak ke kertas"
+              >
+                <Printer className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
+                <span>Cetak Printer</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Lembar Preview Card */}
+          <div className="flex justify-center overflow-x-auto pb-8 print:p-0">
+            <div id="piagam-preview-card-inner" className="w-fit">
+              <PiagamCertificateCard
+                student={selectedStudent}
+                rank={activeStudentRank}
+                score={activeStudentScore}
+                borderStyle={borderStyle}
+                colorTheme={colorTheme}
+                themeConfig={activeThemeConfig}
+                sealType={sealType}
+                paperSize={paperSize}
+                showWatermark={showWatermark}
+                nomorPiagam={currentNomor}
+                kategoriPrestasi={currentKategori}
+                catatanApresiasi={currentCatatan}
+                tanggalPiagam={currentTanggal}
+              />
+            </div>
+          </div>
         </div>
       )}
 
@@ -1075,9 +1198,6 @@ const PiagamCertificateCard: React.FC<PiagamCertificateCardProps> = ({
         >
           PIAGAM PENGHARGAAN
         </h1>
-        <p className="text-[11px] font-serif italic text-slate-500 tracking-wider -mt-0.5">
-          Certificate of Achievement & Excellence
-        </p>
 
         {/* Garis Pembatas Ornamen */}
         <div className="flex items-center justify-center gap-2 mt-1">
